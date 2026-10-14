@@ -12,7 +12,8 @@ object NoteSheet {
     fun show(activity: Activity, ui: Ui, note: Note) {
         val s = Sheet(activity, ui)
         s.body.addView(ui.text(13f, color = ui.muted).apply {
-            text = "${Fmt.dayLabel(note.id)}، ${Fmt.clock(note.id)}"
+            text = "${Fmt.dayLabel(note.id)}، ${Fmt.clock(note.id)}" +
+                if (note.took > 0) "، اتكتبت في ${Fmt.num(note.took)} ثانية" else ""
             setPadding(ui.dp(16), 0, ui.dp(16), 0)
         })
         s.body.addView(ui.text(20f, lineMult = 1.5f).apply {
@@ -62,6 +63,12 @@ object NoteSheet {
         } else if (note.failed) {
             s.action(R.drawable.ic_retry, "حاول تاني") {
                 NoteStore.upsert(activity, note.copy(failed = false))
+                TranscribeWorker.enqueue(activity, note.id)
+            }
+        }
+        if (note.text != null && java.io.File(note.audio).exists()) {
+            s.action(R.drawable.ic_retry, "اكتبها تاني من الصوت") {
+                NoteStore.upsert(activity, note.copy(text = null, failed = false, kind = "idea", summary = null, took = 0))
                 TranscribeWorker.enqueue(activity, note.id)
             }
         }

@@ -10,7 +10,6 @@ Java_com_ahmad_wristnote_WhisperEngine_nativeInit(JNIEnv *env, jobject, jstring 
     const char *path = env->GetStringUTFChars(jpath, nullptr);
     whisper_context_params cp = whisper_context_default_params();
     cp.use_gpu = false;
-    cp.flash_attn = true;
     whisper_context *ctx = whisper_init_from_file_with_params(path, cp);
     env->ReleaseStringUTFChars(jpath, path);
     if (!ctx) __android_log_print(ANDROID_LOG_ERROR, TAG, "failed to load model");
@@ -26,7 +25,7 @@ Java_com_ahmad_wristnote_WhisperEngine_nativeFree(JNIEnv *, jobject, jlong handl
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_ahmad_wristnote_WhisperEngine_nativeTranscribe(JNIEnv *env, jobject, jlong handle,
                                                         jfloatArray jsamples, jint threads,
-                                                        jbyteArray jprompt, jint audioCtx) {
+                                                        jbyteArray jprompt, jint audioCtx, jint maxTokens) {
     auto *ctx = reinterpret_cast<whisper_context *>(handle);
     jsize n = env->GetArrayLength(jsamples);
     jfloat *samples = env->GetFloatArrayElements(jsamples, nullptr);
@@ -53,6 +52,10 @@ Java_com_ahmad_wristnote_WhisperEngine_nativeTranscribe(JNIEnv *env, jobject, jl
     p.suppress_nst = true;
     if (!prompt.empty()) p.initial_prompt = prompt.c_str();
     if (audioCtx > 0) p.audio_ctx = audioCtx;
+    // A short voice note never needs many tokens; this stops runaway output.
+    if (maxTokens > 0) p.max_tokens = maxTokens;
+    // No temperature re-tries: each one re-decodes everything (that was the minutes-long wait).
+    p.temperature_inc = 0.0f;
 
     std::string out;
     if (whisper_full(ctx, p, samples, n) == 0) {

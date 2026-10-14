@@ -36,19 +36,32 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
             Notifier.waitingForModel(ctx)
             return Result.success()
         }
-        val text = try {
-            WhisperEngine.transcribe(ModelManager.file(ctx, model), File(note.audio), model == ModelManager.Model.FAST,
-                Notebooks.all(ctx).flatMap { nb -> listOf(nb.title) + nb.blocks.filter { it.heading }.map { it.text } })
-        } catch (e: Exception) {
-            Log.e("Nerdly", "transcription failed", e)
-            NoteStore.upsert(ctx, note.copy(failed = true))
+        val hints = Notebooks.all(ctx).flatMap { nb -> listOf(nb.title) + nb.blocks.filter { it.heading }.map { it.text } }
+        val started = System.currentTimeMillis()
+        fun run(m: ModelManager.Model) =
+            WhisperEngine.transcribe(ModelManager.file(ctx, m), File(note.audio), m == ModelManager.Model.FAST, hints)
+        var text = try { run(model) } catch (e: Exception) {
+            Log.e("Nerdly", "transcription failed", e); null
+        }
+        // accurate model went off the rails -> redo with the fast one
+        if ((text == null || WhisperEngine.looksBroken(text)) && model != ModelManager.Model.FAST &&
+            ModelManager.isReady(ctx, ModelManager.Model.FAST)) {
+            text = try { run(ModelManager.Model.FAST) } catch (e: Exception) { null }
+        }
+        val took = ((System.currentTimeMillis() - started) / 1000).toInt()
+        Log.i("Nerdly", "transcribed in ${took}s with $model")
+
+        // another run already finished this note: don't overwrite it
+        if (NoteStore.get(ctx, id)?.text != null) return Result.success()
+        if (text == null || WhisperEngine.looksBroken(text)) {
+            NoteStore.upsert(ctx, note.copy(failed = true, took = took))
             return Result.success()
         }
         if (text.isBlank()) {
-            NoteStore.upsert(ctx, note.copy(text = "(مسمعناش كلام واضح)", failed = false))
+            NoteStore.upsert(ctx, note.copy(text = "(مسمعناش كلام واضح)", failed = false, took = took))
             return Result.success()
         }
-        process(ctx, note.copy(text = text, failed = false))
+        process(ctx, note.copy(text = text, failed = false, took = took))
         return Result.success()
     }
 

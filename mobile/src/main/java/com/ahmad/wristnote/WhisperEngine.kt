@@ -3,7 +3,6 @@ package com.ahmad.wristnote
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.math.ceil
 
 /** Offline speech-to-text using whisper.cpp. One loaded model, one job at a time. */
 object WhisperEngine {
@@ -28,11 +27,11 @@ object WhisperEngine {
         val samples = readWav(wav)
         // performance cores only (S24 Ultra: 1 X4 + 5 A720); the efficiency cores slow everyone down
         val threads = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(2, 6)
-        // Shorter audio context = much faster encoder for short clips.
         val seconds = samples.size / 16000.0
-        val audioCtx = if (fast) 0 else (ceil(seconds * 50).toInt() + 96).coerceIn(448, 1500)
+        // full audio window: trimming it makes large-v3-turbo produce garbage
+        val maxTokens = (48 + seconds * 8).toInt().coerceAtMost(224)
         val raw = String(
-            nativeTranscribe(ctx, samples, threads, prompt(hints).toByteArray(Charsets.UTF_8), audioCtx),
+            nativeTranscribe(ctx, samples, threads, prompt(hints).toByteArray(Charsets.UTF_8), 0, maxTokens),
             Charsets.UTF_8
         )
         return clean(raw)
@@ -42,6 +41,14 @@ object WhisperEngine {
     private fun prompt(hints: List<String>): String {
         val names = hints.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(20)
         return if (names.isEmpty()) PROMPT else "$PROMPT النوت: ${names.joinToString("، ")}."
+    }
+
+    /** True when the output is mostly Latin letters — Whisper went off the rails. */
+    fun looksBroken(text: String): Boolean {
+        val letters = text.filter { it.isLetter() }
+        if (letters.length < 4) return false
+        val latin = letters.count { it in 'a'..'z' || it in 'A'..'Z' || it.code in 0x0400..0x04FF }
+        return latin > letters.length * 0.4
     }
 
     /** Removes Whisper's well-known Arabic hallucinations and prompt echoes. */
@@ -83,5 +90,5 @@ object WhisperEngine {
 
     private external fun nativeInit(path: String): Long
     private external fun nativeFree(ctx: Long)
-    private external fun nativeTranscribe(ctx: Long, samples: FloatArray, threads: Int, prompt: ByteArray, audioCtx: Int): ByteArray
+    private external fun nativeTranscribe(ctx: Long, samples: FloatArray, threads: Int, prompt: ByteArray, audioCtx: Int, maxTokens: Int): ByteArray
 }
