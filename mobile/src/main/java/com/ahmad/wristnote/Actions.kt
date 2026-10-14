@@ -241,8 +241,18 @@ object Reminders {
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val text = intent.getStringExtra("text") ?: return
-        Notifier.reminderDue(ctx, text, intent.getLongExtra("at", 0L))
-        Reminders.done(ctx, intent.getLongExtra("at", 0L))
+        val at = intent.getLongExtra("at", 0L)
+        when (intent.action) {
+            "done" -> Notifier.cancel(ctx, intent.getIntExtra("nid", 0))
+            "snooze" -> {
+                Notifier.cancel(ctx, intent.getIntExtra("nid", 0))
+                Reminders.schedule(ctx, System.currentTimeMillis() + 10 * 60_000, text)
+            }
+            else -> {
+                Notifier.reminderDue(ctx, text, at)
+                Reminders.done(ctx, at)
+            }
+        }
     }
 }
 

@@ -153,8 +153,9 @@ object CommandParser {
         // relative: "بعد ساعتين" / "بعد نص ساعه" / "بعد ١٠ دقايق" / "بعد بكره"
         var i = 0
         while (i < t.size) {
-            if (t[i] == "بعد" && !t.used[i]) {
-                if (t[i + 1] in TOMORROW) { dayOffset = 2; t.use(i, i + 1); i += 2; continue }
+            // "بعد ساعة" / "كمان ساعة" / "خلال نص ساعة"
+            if (t[i] in setOf("بعد", "كمان", "خلال", "كمانه") && !t.used[i]) {
+                if (t[i] == "بعد" && t[i + 1] in TOMORROW) { dayOffset = 2; t.use(i, i + 1); i += 2; continue }
                 var j = i + 1
                 var amount: Double? = null
                 var unitMin = 0L
@@ -168,6 +169,7 @@ object CommandParser {
                     t[j] == "دقيقه" -> { amount = 1.0; unitMin = 1; j += 1 }
                     t[j] == "يوم" -> { amount = 1.0; unitMin = 1440; j += 1 }
                     t[j] == "اسبوع" -> { amount = 1.0; unitMin = 10080; j += 1 }
+                    t[j] == "شويه" || t[j] == "شويا" -> { amount = 30.0; unitMin = 1; j += 1 }
                     num(t[j]) != null -> {
                         val a = num(t[j])!!.toDouble()
                         val u = t[j + 1]
@@ -387,7 +389,7 @@ object CommandParser {
             val w = parseTime(tt, now)
             if (w != null) {
                 tt.use(remIdx)
-                val body = content(tt)
+                val body = stripBi(content(tt))
                 return Command.Reminder(w.at, body.ifBlank { "تذكير" })
             }
         }
@@ -550,6 +552,19 @@ object CommandParser {
         val body = content(t)
         if (body.isBlank()) return null
         return Command.AddToNote(nb!!.id, anchor, body, newHeading)
+    }
+
+    /** "فكرني بموضوع العربية" -> "موضوع العربية" (keeps real ب-words like بيت، بنك). */
+    private val BI_WORDS = setOf("بيت", "البيت", "بنك", "بنزين", "بطاريه", "برنامج", "بنت", "بلد", "باب", "بحر", "برد",
+        "بطاطس", "بيض", "بلح", "بسكوت", "بدله", "بوكس", "بنطلون", "بابا", "بكره", "برضو", "بس", "بعد")
+    private fun stripBi(s: String): String {
+        val parts = s.split(" ").toMutableList()
+        val first = parts.firstOrNull() ?: return s
+        val n = Ar.token(first)
+        if (n.startsWith("ب") && n.length >= 4 && n !in BI_WORDS && !n.startsWith("بت") && !n.startsWith("بي")) {
+            parts[0] = first.substring(first.indexOf('ب') + 1)
+        }
+        return parts.joinToString(" ")
     }
 
     private fun content(t: Toks): String = trimLead(t.rest().joinToString(" ") { t.raw[it] })

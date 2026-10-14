@@ -131,4 +131,25 @@ class CommandParserTest {
     @Test fun addIntoExistingIsNotCreate() {
         assertTrue(p("ضيف في نوتة الشغل تحت المهام نراجع العقد") is Command.AddToNote)
     }
+
+    @Test fun reminderKaman() {
+        val c = p("فكرني كمان ساعة بالاجتماع") as Command.Reminder
+        assertEquals("14/10 11:00", at(c.at)); assertEquals("الاجتماع", c.text)
+    }
+    @Test fun reminderKamanQuarter() {
+        val c = p("فكرني كمان ربع ساعة بموضوع العربية") as Command.Reminder
+        assertEquals("14/10 10:15", at(c.at)); assertEquals("موضوع العربية", c.text)
+    }
+    @Test fun reminderKamanMinutes() {
+        val c = p("فكرني كمان ١٠ دقايق اطفي الفرن") as Command.Reminder
+        assertEquals("14/10 10:10", at(c.at)); assertEquals("اطفي الفرن", c.text)
+    }
+    @Test fun reminderShwaya() {
+        val c = p("فكرني كمان شوية اكلم ماما") as Command.Reminder
+        assertEquals("14/10 10:30", at(c.at)); assertEquals("اكلم ماما", c.text)
+    }
+    @Test fun reminderKeepsBWord() {
+        val c = p("فكرني كمان ساعة بيت خالتي") as Command.Reminder
+        assertEquals("بيت خالتي", c.text)
+    }
 }

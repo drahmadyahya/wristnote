@@ -10,14 +10,28 @@ import androidx.core.app.NotificationManagerCompat
 
 object Notifier {
     private const val NOTES = "notes"
-    private const val REMINDERS = "reminders"
+    // new id: channel sound/vibration can't be changed after a channel is created
+    private const val REMINDERS = "reminders_sound"
     private const val WAITING_ID = 1
 
     private fun channels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(NOTES, "الأفكار والأوامر", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.deleteNotificationChannel("reminders")
         nm.createNotificationChannel(NotificationChannel(REMINDERS, "التذكيرات", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "تذكيرات «فكرني» في وقتها، بصوت واهتزاز"
+            setSound(
+                android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION),
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
             enableVibration(true)
+            vibrationPattern = longArrayOf(0, 400, 200, 400, 200, 600)
+            enableLights(true)
+            lightColor = ctx.getColor(R.color.ic_bg)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         })
     }
 
@@ -73,11 +87,24 @@ object Notifier {
 
     fun reminderDue(ctx: Context, text: String, at: Long) {
         channels(ctx)
+        val id = (at / 1000 % Int.MAX_VALUE).toInt()
+        fun action(kind: String) = PendingIntent.getBroadcast(
+            ctx, id * 2 + if (kind == "snooze") 1 else 0,
+            Intent(ctx, ReminderReceiver::class.java).setAction(kind)
+                .putExtra("text", text).putExtra("at", at).putExtra("nid", id),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         val b = base(ctx, REMINDERS, "تذكير", text)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-        notify(ctx, (at / 1000 % Int.MAX_VALUE).toInt(), b)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(0, "تم", action("done"))
+            .addAction(0, "أجّل ١٠ دقايق", action("snooze"))
+        notify(ctx, id, b)
     }
+
+    fun cancel(ctx: Context, id: Int) = NotificationManagerCompat.from(ctx).cancel(id)
 
     /** Quiet ongoing notification while a thought is being transcribed. */
     fun working(ctx: Context): android.app.Notification {
