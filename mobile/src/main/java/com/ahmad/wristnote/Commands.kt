@@ -65,8 +65,58 @@ object Ar {
         return s
     }
 
+    /**
+     * Sound skeleton shared by Arabic and English spellings, so
+     * "نيردلي" matches "Nerdly" and "شوبينج" matches "Shopping".
+     */
+    fun phon(word: String): String {
+        val w = word.lowercase()
+        val sb = StringBuilder()
+        if (w.any { it in 'a'..'z' }) {
+            var i = 0
+            while (i < w.length) {
+                val c = w[i]; val n = w.getOrNull(i + 1)
+                val two = "$c${n ?: ' '}"
+                when {
+                    two == "ph" -> { sb.append('f'); i++ }
+                    two == "sh" || two == "ch" -> { sb.append('s'); i++ }
+                    two == "th" -> { sb.append('t'); i++ }
+                    two == "kh" || two == "ck" || two == "gh" -> { sb.append('k'); i++ }
+                    c in "aeiouyw" -> {}
+                    c == 'q' || c == 'c' -> sb.append('k')
+                    c == 'x' -> sb.append("ks")
+                    c == 'v' -> sb.append('f')
+                    c == 'p' -> sb.append('b')
+                    c == 'j' -> sb.append('g')
+                    c in 'a'..'z' -> sb.append(c)
+                }
+                i++
+            }
+        } else {
+            for ((i, c) in w.withIndex()) {
+                val m = when (c) {
+                    'ب', 'پ' -> 'b'; 'ت', 'ط' -> 't'; 'ث', 'س', 'ص', 'ش' -> 's'; 'ج', 'غ', 'گ' -> 'g'
+                    'ح' -> 'h'; 'ه' -> if (i == w.lastIndex) null else 'h'
+                    'خ', 'ق', 'ك' -> 'k'; 'د', 'ض' -> 'd'; 'ذ', 'ز', 'ظ' -> 'z'; 'ر' -> 'r'
+                    'ف', 'ڤ' -> 'f'; 'ل' -> 'l'; 'م' -> 'm'; 'ن' -> 'n'
+                    else -> null // vowels ا و ي ى ء ع
+                }
+                if (m != null) sb.append(m)
+            }
+        }
+        // collapse doubles: "shopping" -> sbng
+        return sb.toString().replace(Regex("(.)\\1+"), "$1")
+    }
+
+    private fun hasLatin(s: String) = s.any { it in 'a'..'z' }
+
     fun close(a: String, b: String): Boolean {
         if (a == b) return true
+        if (hasLatin(a) != hasLatin(b)) {
+            val pa = phon(a); val pb = phon(b)
+            if (pa.length < 2 || pb.length < 2) return false
+            return pa == pb || (minOf(pa.length, pb.length) >= 4 && lev(pa, pb) <= 1)
+        }
         if (a.length < 3 || b.length < 3) return false
         // "شغل" ~ "شغلي", "مهام" ~ "مهامي"
         if ((a.startsWith(b) || b.startsWith(a)) && kotlin.math.abs(a.length - b.length) <= 2) return true

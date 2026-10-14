@@ -172,4 +172,15 @@ class CommandParserTest {
         val c = p("ضيف في نوتة اسمها المشتريات زيت") as Command.AddToNote
         assertEquals(2L, c.notebookId); assertEquals("زيت", c.text)
     }
+
+    @Test fun englishTitleSpokenInArabic() {
+        val c = CommandParser.parse("ضيف في نوتة نيردلي ان انا عايز اكل بلح", oneBook, now) as Command.AddToNote
+        assertEquals(5L, c.notebookId); assertEquals("انا عايز اكل بلح", c.text)
+    }
+    @Test fun phoneticMatches() {
+        assertTrue(Ar.close("نيردلي", "nerdly"))
+        assertTrue(Ar.close("شوبينج", "shopping"))
+        assertTrue(Ar.close("جيم", "gym"))
+        assertTrue(!Ar.close("الشغل", "nerdly"))
+    }
 }
