@@ -424,10 +424,18 @@ object CommandParser {
     private val ITEM_LEAD = setOf("جواها", "فيها", "فيه", "عليها", "تحتها", "بند", "بنود", "البنود", "دي", "دول",
         "الحاجات", "حاجات", "كمان", "الاتي", "التالي")
 
+    /** "اعملي" and how Whisper tends to spell it: اعمالي، اعمل لي، عملي، اعمليلي… */
+    private fun isCreateVerb(n: String) = n in CREATE_VERBS ||
+        n.startsWith("اعم") || (n.startsWith("عمل") && n.length <= 7) ||
+        n.startsWith("افتح") || n.startsWith("انش") || n.startsWith("جهز") || n.startsWith("سوي")
+
     private fun createNotebook(t: Toks): Command.CreateNotebook? {
         val c = (0 until minOf(5, t.size)).firstOrNull { t[it] in CONTAINERS } ?: return null
-        val verb = (0 until c).firstOrNull { t[it] in CREATE_VERBS }
-        if (verb == null && t[c + 1] !in NEW_WORDS) return null
+        val verb = (0 until c).firstOrNull { isCreateVerb(t[it]) }
+        val addBefore = (0 until c).any { t[it] in ADD_VERBS }
+        val named = t[c + 1] in NAME_WORDS || t[c + 1] in NEW_WORDS
+        // "اعملي نوتة …" / "نوتة جديدة اسمها …" — but "ضيف في نوتة اسمها …" is adding
+        if (verb == null && (!named || addBefore)) return null
         var s = c + 1
         while (t[s] in NEW_WORDS || t[s] in NAME_WORDS) s++
         if (s >= t.size) return null
@@ -505,13 +513,10 @@ object CommandParser {
             var c = container + 1
             while (t[c] in LINKERS) c++
             val spoken = t.raw.getOrNull(c)?.let { Ar.token(it) }.orEmpty()
-            if (notebooks.size == 1 && spoken.isNotEmpty() && spoken != "تحت") {
-                nb = notebooks[0]; hit = Hit(c, c + 1, 0)
-            } else {
-                for (k in from..c) t.use(k)
-                if (verb != null) t.use(verb)
-                return Command.NoteNotFound(t.raw.getOrElse(c) { "" }, content(t))
-            }
+            // never guess: a wrong notebook is worse than none
+            for (k in from..c) t.use(k)
+            if (verb != null) t.use(verb)
+            return Command.NoteNotFound(t.raw.getOrElse(c) { "" }, content(t))
         }
         val h = hit!!
         verb?.let { t.use(it) }

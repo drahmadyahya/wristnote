@@ -152,4 +152,24 @@ class CommandParserTest {
         val c = p("فكرني كمان ساعة بيت خالتي") as Command.Reminder
         assertEquals("بيت خالتي", c.text)
     }
+
+    private val oneBook = listOf(NotebookRef(5, "Nerdly", emptyList()))
+
+    @Test fun createMisspelledVerb() {
+        val c = CommandParser.parse("اعمالي نوتة اسمها العمليات وضيف جواها لبن عيش طنبر هندي", oneBook, now) as Command.CreateNotebook
+        assertEquals("العمليات", c.title); assertEquals(listOf("لبن عيش طنبر هندي"), c.items)
+    }
+    @Test fun createVerbVariants() {
+        for (v in listOf("اعمل لي", "عملي", "اعمليلي", "افتحي")) {
+            val c = CommandParser.parse("$v نوتة اسمها البيت", oneBook, now)
+            assertTrue("$v -> $c", c is Command.CreateNotebook && c.title == "البيت")
+        }
+    }
+    @Test fun noGuessingSingleNotebook() {
+        assertTrue(CommandParser.parse("ضيف في نوتة السفر شنطة", oneBook, now) is Command.NoteNotFound)
+    }
+    @Test fun addToNamedExisting() {
+        val c = p("ضيف في نوتة اسمها المشتريات زيت") as Command.AddToNote
+        assertEquals(2L, c.notebookId); assertEquals("زيت", c.text)
+    }
 }

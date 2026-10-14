@@ -36,8 +36,12 @@ object NoteSheet {
 
         val text = note.text
         if (text != null) {
+            s.action(R.drawable.ic_retry, "افهم الأمر تاني") {
+                Thread { TranscribeWorker.process(activity.applicationContext, note) }.start()
+                Toast.makeText(activity, "بنفّذه تاني…", Toast.LENGTH_SHORT).show()
+            }
             if (note.kind != "idea") {
-                s.action(R.drawable.ic_retry, "اعتبرها فكرة عادية") {
+                s.action(R.drawable.ic_note, "اعتبرها فكرة عادية") {
                     NoteStore.upsert(activity, note.copy(kind = "idea", summary = null))
                 }
             }
