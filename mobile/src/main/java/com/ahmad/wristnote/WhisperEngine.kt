@@ -18,7 +18,7 @@ object WhisperEngine {
         "كلام بالعامية المصرية. فكرني بكرة الساعة خمسة ونص. ظبطلي المنبه الساعة ستة الصبح. احفظ المعاد ده في التقويم. ضيف في نوتة الشغل تحت عنوان المهام."
 
     @Synchronized
-    fun transcribe(model: File, wav: File, fast: Boolean): String {
+    fun transcribe(model: File, wav: File, fast: Boolean, hints: List<String> = emptyList()): String {
         if (ctx == 0L || loadedPath != model.absolutePath) {
             if (ctx != 0L) nativeFree(ctx)
             ctx = nativeInit(model.absolutePath)
@@ -31,10 +31,16 @@ object WhisperEngine {
         val seconds = samples.size / 16000.0
         val audioCtx = if (fast) 0 else (ceil(seconds * 50).toInt() + 160).coerceIn(640, 1500)
         val raw = String(
-            nativeTranscribe(ctx, samples, threads, PROMPT.toByteArray(Charsets.UTF_8), audioCtx),
+            nativeTranscribe(ctx, samples, threads, prompt(hints).toByteArray(Charsets.UTF_8), audioCtx),
             Charsets.UTF_8
         )
         return clean(raw)
+    }
+
+    /** Adds the user's own notebook names so Whisper spells them the same way. */
+    private fun prompt(hints: List<String>): String {
+        val names = hints.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(20)
+        return if (names.isEmpty()) PROMPT else "$PROMPT النوت: ${names.joinToString("، ")}."
     }
 
     /** Removes Whisper's well-known Arabic hallucinations and prompt echoes. */

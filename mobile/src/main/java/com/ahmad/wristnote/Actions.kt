@@ -34,6 +34,8 @@ object Actions {
         is Command.Reminder -> reminder(ctx, cmd)
         is Command.Event -> event(ctx, cmd)
         is Command.AddToNote -> addToNote(ctx, cmd)
+        is Command.NoteNotFound -> Result("idea",
+            if (cmd.name.isBlank()) "مفيش نوتة بالاسم ده، اتحفظت كفكرة" else "مفيش نوتة اسمها «${cmd.name}»، اتحفظت كفكرة", false)
     }
 
     // ───── alarm: hands the time to the phone's Clock app ─────
@@ -151,11 +153,13 @@ object Actions {
 
     // ───── add to notebook ─────
     private fun addToNote(ctx: Context, c: Command.AddToNote): Result {
-        val nb = Notebooks.addItem(ctx, c.notebookId, c.headingId, c.text)
+        val nb = Notebooks.addItem(ctx, c.notebookId, c.anchorId, c.text, c.newHeading)
             ?: return Result("note", "النوتة اتمسحت", false)
-        val heading = c.headingId?.let { id -> nb.blocks.firstOrNull { it.id == id }?.text }
+        // find the heading the new item ended up under
+        val idx = nb.blocks.indexOfLast { !it.heading && it.text == c.text }
+        val heading = (idx downTo 0).firstOrNull { nb.blocks[it].heading }?.let { nb.blocks[it].text }
         val where = if (heading != null) "${nb.title} ← $heading" else nb.title
-        val extra = if (c.headingMissing) " (ملقتش العنوان، اتضافت في الآخر)" else ""
+        val extra = if (c.newHeading != null && heading == c.newHeading) " (عنوان جديد)" else ""
         return Result("note", "اتضافت في $where$extra", true)
     }
 }

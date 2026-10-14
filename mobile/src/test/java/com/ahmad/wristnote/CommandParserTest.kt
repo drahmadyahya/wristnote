@@ -10,7 +10,7 @@ class CommandParserTest {
     // Wednesday 14 Oct 2026, 10:00
     private val now = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 14, 10, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
     private val books = listOf(
-        NotebookRef(1, "الشغل", listOf(10L to "المهام", 11L to "أفكار")),
+        NotebookRef(1, "الشغل", listOf(10L to "المهام", 11L to "أفكار"), listOf(20L to "مراجعة الميزانية")),
         NotebookRef(2, "المشتريات", emptyList()),
     )
 
@@ -63,20 +63,48 @@ class CommandParserTest {
     }
     @Test fun addUnderHeading() {
         val c = p("ضيف في نوتة الشغل تحت المهام نراجع العقد") as Command.AddToNote
-        assertEquals(1L, c.notebookId); assertEquals(10L, c.headingId); assertEquals("نراجع العقد", c.text)
+        assertEquals(1L, c.notebookId); assertEquals(10L, c.anchorId); assertEquals("نراجع العقد", c.text)
     }
     @Test fun addHeadingWordAndEarlyContent() {
         val c = p("ضيف لبن وعيش في المشتريات") as Command.AddToNote
-        assertEquals(2L, c.notebookId); assertNull(c.headingId); assertEquals("لبن وعيش", c.text)
+        assertEquals(2L, c.notebookId); assertNull(c.anchorId); assertEquals("لبن وعيش", c.text)
     }
     @Test fun addUnderTitledHeading() {
         val c = p("ضيف للشغل تحت عنوان افكار تطبيق للساعة") as Command.AddToNote
-        assertEquals(1L, c.notebookId); assertEquals(11L, c.headingId); assertEquals("تطبيق للساعة", c.text)
+        assertEquals(1L, c.notebookId); assertEquals(11L, c.anchorId); assertEquals("تطبيق للساعة", c.text)
     }
     @Test fun plainIdea() {
         assertNull(p("فكرة حلوة لمشروع جديد عن القهوة"))
     }
     @Test fun normalizesDigits() {
         assertEquals("15", Ar.norm("١٥"))
+    }
+
+    @Test fun addPoliteWithLinkers() {
+        val c = p("ممكن تضيف في النوتة بتاعة الشغل تحت بند المهام نراجع العقد") as Command.AddToNote
+        assertEquals(1L, c.notebookId); assertEquals(10L, c.anchorId); assertEquals("نراجع العقد", c.text)
+    }
+    @Test fun addWithoutVerb() {
+        val c = p("نوتة الشغل تحت المهام نراجع العقد") as Command.AddToNote
+        assertEquals(1L, c.notebookId); assertEquals(10L, c.anchorId); assertEquals("نراجع العقد", c.text)
+    }
+    @Test fun addFuzzyTitle() {
+        val c = p("ضيفي في نوتا شغلي تحت المهام: نراجع العقد") as Command.AddToNote
+        assertEquals(1L, c.notebookId); assertEquals(10L, c.anchorId); assertEquals("نراجع العقد", c.text)
+    }
+    @Test fun addNewHeading() {
+        val c = p("ضيف في نوتة الشغل تحت الاجتماعات حضر العرض") as Command.AddToNote
+        assertEquals("الاجتماعات", c.newHeading); assertEquals("حضر العرض", c.text)
+    }
+    @Test fun addUnderItem() {
+        val c = p("ضيف في نوتة الشغل تحت مراجعة الميزانية أرقام الربع التالت") as Command.AddToNote
+        assertEquals(20L, c.anchorId); assertEquals("أرقام الربع التالت", c.text)
+    }
+    @Test fun unknownNotebook() {
+        val c = p("ضيف في نوتة السفر شنطة الهدوم") as Command.NoteNotFound
+        assertEquals("السفر", c.name); assertEquals("شنطة الهدوم", c.text)
+    }
+    @Test fun alarmStillWorksWithAddVerb() {
+        assertTrue(p("حطلي منبه الساعة ٧ الصبح") is Command.Alarm)
     }
 }

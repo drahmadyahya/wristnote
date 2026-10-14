@@ -9,7 +9,8 @@ import java.io.File
 data class Block(val id: Long, val heading: Boolean, val text: String, val done: Boolean = false)
 
 data class Notebook(val id: Long, val title: String, val blocks: List<Block>) {
-    fun ref() = NotebookRef(id, title, blocks.filter { it.heading }.map { it.id to it.text })
+    fun ref() = NotebookRef(id, title, blocks.filter { it.heading }.map { it.id to it.text },
+        blocks.filter { !it.heading }.map { it.id to it.text })
     val itemCount get() = blocks.count { !it.heading }
 }
 
@@ -50,20 +51,30 @@ object Notebooks {
 
     @Synchronized fun delete(ctx: Context, id: Long) = save(ctx, all(ctx).filter { it.id != id })
 
-    /** Adds an item at the end of a heading's section (or of the notebook). */
+    /**
+     * Adds an item. anchor = a heading (goes at the end of its section),
+     * an item (goes right after it), or null (end of notebook).
+     * newHeading creates that heading first (or reuses one with the same name).
+     */
     @Synchronized
-    fun addItem(ctx: Context, notebookId: Long, headingId: Long?, text: String): Notebook? {
+    fun addItem(ctx: Context, notebookId: Long, anchorId: Long?, text: String, newHeading: String? = null): Notebook? {
         val nb = get(ctx, notebookId) ?: return null
         val blocks = nb.blocks.toMutableList()
+        var anchor = anchorId
+        if (newHeading != null) {
+            val existing = blocks.firstOrNull { it.heading && Ar.key(Ar.token(it.text)) == Ar.key(Ar.token(newHeading)) }
+            anchor = existing?.id ?: Block(newId(), true, newHeading).also { blocks.add(it) }.id
+        }
         val item = Block(newId(), false, text)
-        if (headingId == null) blocks.add(item)
-        else {
-            val h = blocks.indexOfFirst { it.id == headingId }
-            if (h < 0) blocks.add(item) else {
-                var end = h + 1
+        val i = blocks.indexOfFirst { it.id == anchor }
+        when {
+            i < 0 -> blocks.add(item)
+            blocks[i].heading -> {
+                var end = i + 1
                 while (end < blocks.size && !blocks[end].heading) end++
                 blocks.add(end, item)
             }
+            else -> blocks.add(i + 1, item)
         }
         return nb.copy(blocks = blocks).also { put(ctx, it) }
     }

@@ -16,11 +16,18 @@ sealed class Command {
     data class Alarm(val at: Long, val label: String) : Command()
     data class Reminder(val at: Long, val text: String) : Command()
     data class Event(val at: Long, val title: String, val timed: Boolean) : Command()
-    data class AddToNote(val notebookId: Long, val headingId: Long?, val text: String,
-                         val headingMissing: Boolean) : Command()
+    /** anchorId: a heading (add at end of its section) or an item (add right after it). */
+    data class AddToNote(val notebookId: Long, val anchorId: Long?, val text: String,
+                         val newHeading: String? = null) : Command()
+    /** User clearly asked for a notebook we don't have. */
+    data class NoteNotFound(val name: String, val text: String) : Command()
 }
 
-data class NotebookRef(val id: Long, val title: String, val headings: List<Pair<Long, String>>)
+data class NotebookRef(
+    val id: Long, val title: String,
+    val headings: List<Pair<Long, String>>,
+    val items: List<Pair<Long, String>> = emptyList(),
+)
 
 object Ar {
     private val marks = Regex("[ً-ٟـٰ]")
@@ -58,11 +65,13 @@ object Ar {
 
     fun close(a: String, b: String): Boolean {
         if (a == b) return true
-        if (a.length < 4 || b.length < 4) return false
-        return lev(a, b) <= 1
+        if (a.length < 3 || b.length < 3) return false
+        // "شغل" ~ "شغلي", "مهام" ~ "مهامي"
+        if ((a.startsWith(b) || b.startsWith(a)) && kotlin.math.abs(a.length - b.length) <= 2) return true
+        return lev(a, b) <= (if (minOf(a.length, b.length) >= 5) 2 else 1)
     }
 
-    private fun lev(a: String, b: String): Int {
+    fun lev(a: String, b: String): Int {
         val d = IntArray(b.length + 1) { it }
         for (i in 1..a.length) {
             var prev = d[0]; d[0] = i
@@ -339,11 +348,17 @@ object CommandParser {
         "عندي", "ده", "دا", "دي", "في", "على", "علي", "المعاد", "الميعاد", "الموعد", "معاد", "ميعاد", "موعد",
         "التقويم", "تقويم", "الكالندر", "كالندر", "الاجنده", "اجنده")
     private val APPOINTMENT_NOUNS = setOf("معاد", "ميعاد", "موعد", "اجتماع", "حجز")
-    private val ADD_VERBS = setOf("ضيف", "اضيف", "ضيفي", "اضف", "ضيفلي", "زود", "زودلي", "حط", "حطلي", "اكتب", "اكتبلي", "سجل", "نزل", "نزلي")
-    private val CONTAINERS = setOf("نوته", "النوته", "نوت", "النوت", "ملاحظه", "الملاحظه", "ملاحظات", "الملاحظات",
-        "ليسته", "الليسته", "لسته", "اللسته", "قايمه", "القايمه", "قائمه", "القائمه", "ورقه", "الورقه")
-    private val HEADING_WORDS = setOf("عنوان", "العنوان", "بند", "البند", "جزء", "الجزء", "قسم", "القسم", "اسم", "خانه", "الخانه")
-    private val LEAD_FILLER = setOf("ان", "اني", "انه", "انك", "اننا", "ب", "بان", "ده", "دي", "اللي", "هو", "هي", "بتاع", "يا")
+    private val ADD_VERBS = setOf("ضيف", "اضيف", "ضيفي", "اضف", "ضف", "ضيفلي", "ضيفيلي", "تضيف", "تضيفلي", "زود", "زودلي",
+        "حط", "حطلي", "حطي", "اكتب", "اكتبلي", "اكتبي", "سجل", "سجلي", "نزل", "نزلي", "دون", "دونلي", "ضيفها", "ضيفه")
+    private val CONTAINERS = setOf("نوته", "النوته", "نوتا", "النوتا", "نوتي", "نوت", "النوت", "نوتس", "نوتات", "النوتات",
+        "ملاحظه", "الملاحظه", "ملاحظات", "الملاحظات", "ليسته", "الليسته", "لسته", "اللسته", "ليست", "الليست",
+        "قايمه", "القايمه", "قائمه", "القائمه", "ورقه", "الورقه", "نوتتي", "نوتة")
+    private val LINKERS = setOf("في", "ل", "على", "علي", "جوه", "جوا", "بتاعه", "بتاعت", "بتاع", "بتاعتي", "اللي", "اسمها",
+        "اسمه", "عندي", "دي", "ده")
+    private val HEADING_WORDS = setOf("عنوان", "العنوان", "بند", "البند", "جزء", "الجزء", "قسم", "القسم", "اسم", "خانه",
+        "الخانه", "اسمه", "اللي", "هو", "عناوين")
+    private val LEAD_FILLER = setOf("ان", "اني", "انه", "انك", "اننا", "ب", "بان", "ده", "دي", "اللي", "هو", "هي", "بتاع",
+        "يا", "ممكن", "لو", "سمحت", "طيب", "بقولك", "عايز", "عاوز", "و")
 
     fun parse(text: String, notebooks: List<NotebookRef>, now: Long): Command? {
         val t = Toks(text)
@@ -395,9 +410,12 @@ object CommandParser {
         return null
     }
 
-    private fun addToNote(t: Toks, notebooks: List<NotebookRef>): Command.AddToNote? {
-        if (notebooks.isEmpty()) return null
-        val verb = (0 until minOf(3, t.size)).firstOrNull { t[it] in ADD_VERBS } ?: return null
+    private fun addToNote(t: Toks, notebooks: List<NotebookRef>): Command? {
+        val verb = (0 until minOf(4, t.size)).firstOrNull { t[it] in ADD_VERBS }
+        val container = (0 until t.size).firstOrNull { t[it] in CONTAINERS }
+        if (verb == null && container == null) return null
+        if (verb == null && container!! > 3) return null   // "نوتة" deep inside a sentence is just content
+        val from = (verb ?: -1) + 1
 
         val keys = t.n.map { Ar.key(it) }
         data class Hit(val start: Int, val end: Int, val score: Int)
@@ -407,47 +425,74 @@ object CommandParser {
             var best: Hit? = null
             for (s in from..t.size - tk.size) {
                 if ((0 until tk.size).all { Ar.close(keys[s + it], tk[it]) }) {
-                    val h = Hit(s, s + tk.size, tk.sumOf { it.length })
+                    val exact = (0 until tk.size).count { keys[s + it] == tk[it] }
+                    val h = Hit(s, s + tk.size, tk.sumOf { it.length } * 10 + exact)
                     if (best == null || h.score > best.score) best = h
                 }
             }
             return best
         }
 
-        var bestNb: Pair<NotebookRef, Hit>? = null
-        for (nb in notebooks) {
-            val h = find(nb.title, verb + 1) ?: continue
-            if (bestNb == null || h.score > bestNb.second.score) bestNb = nb to h
+        var nb: NotebookRef? = null
+        var hit: Hit? = null
+        for (b in notebooks) {
+            val h = find(b.title, from) ?: continue
+            if (hit == null || h.score > hit.score) { nb = b; hit = h }
         }
-        val (nb, hit) = bestNb ?: return null
-        t.use(verb)
-        for (k in hit.start until hit.end) t.use(k)
-        // container word / preposition right before the title
-        var k = hit.start - 1
-        while (k > verb && (t[k] in CONTAINERS || t[k] in setOf("في", "ل", "على", "علي", "جوه"))) { t.use(k); k-- }
-        if (hit.start > 0 && t[hit.start - 1].let { it.startsWith("ل") && it.length > 1 && Ar.key(it.drop(1)) == keys[hit.start] }) t.use(hit.start - 1)
 
-        // "تحت <heading>"
-        var headingId: Long? = null
-        var headingMissing = false
-        val tahta = (0 until t.size).firstOrNull { !t.used[it] && t[it] == "تحت" }
+        if (nb == null) {
+            if (container == null) return null
+            // "ضيف في نوتة <name>": name not recognised
+            var c = container + 1
+            while (t[c] in LINKERS) c++
+            val spoken = t.raw.getOrNull(c)?.let { Ar.token(it) }.orEmpty()
+            if (notebooks.size == 1 && spoken.isNotEmpty() && spoken != "تحت") {
+                nb = notebooks[0]; hit = Hit(c, c + 1, 0)
+            } else {
+                for (k in from..c) t.use(k)
+                if (verb != null) t.use(verb)
+                return Command.NoteNotFound(t.raw.getOrElse(c) { "" }, content(t))
+            }
+        }
+        val h = hit!!
+        verb?.let { t.use(it) }
+        for (k in h.start until h.end) t.use(k)
+        // container word / linkers right before the title
+        var k = h.start - 1
+        while (k >= from && (t[k] in CONTAINERS || t[k] in LINKERS)) { t.use(k); k-- }
+        container?.let { if (it < h.start) t.use(it) }
+        // "للشغل" style attached preposition was matched as the title itself; drop "بتاعتي" after it
+        while (t[h.end].let { it == "بتاعتي" || it == "بتاعي" }) { t.use(h.end) ; break }
+
+        // "تحت <heading or item>"
+        var anchor: Long? = null
+        var newHeading: String? = null
+        val tahta = (0 until t.size).firstOrNull { !t.used[it] && (t[it] == "تحت" || t[it] == "تحته") }
         if (tahta != null) {
             var s = tahta + 1
             while (t[s] in HEADING_WORDS) s++
-            var bestH: Pair<Long, Hit>? = null
-            for ((id, title) in nb.headings) {
-                val h = find(title, s) ?: continue
-                if (h.start - s > 1) continue
-                if (bestH == null || h.score > bestH.second.score) bestH = id to h
+            var best: Pair<Long, Hit>? = null
+            for ((id, title) in nb!!.headings + nb.items) {
+                val x = find(title, s) ?: continue
+                if (x.start - s > 1) continue
+                val bonus = if (nb.headings.any { it.first == id }) 1 else 0
+                val scored = x.copy(score = x.score * 2 + bonus)
+                if (best == null || scored.score > best.second.score) best = id to scored
             }
-            if (bestH != null) {
-                headingId = bestH.first
-                for (x in tahta until bestH.second.end) t.use(x)
-            } else headingMissing = true
+            if (best != null) {
+                anchor = best.first
+                for (x in tahta until best.second.end) t.use(x)
+            } else if (s < t.size && t.rest().count { it > s } > 0) {
+                // unknown heading: create it from the next word
+                newHeading = t.raw[s].trim('،', ',', ':', '.')
+                for (x in tahta..s) t.use(x)
+            } else {
+                t.use(tahta)
+            }
         }
         val body = content(t)
         if (body.isBlank()) return null
-        return Command.AddToNote(nb.id, headingId, body, headingMissing)
+        return Command.AddToNote(nb!!.id, anchor, body, newHeading)
     }
 
     private fun content(t: Toks): String = trimLead(t.rest().joinToString(" ") { t.raw[it] })

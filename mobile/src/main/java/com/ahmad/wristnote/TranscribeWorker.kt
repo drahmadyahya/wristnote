@@ -24,7 +24,8 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
             return Result.success()
         }
         val text = try {
-            WhisperEngine.transcribe(ModelManager.file(ctx, model), File(note.audio), model == ModelManager.Model.FAST)
+            WhisperEngine.transcribe(ModelManager.file(ctx, model), File(note.audio), model == ModelManager.Model.FAST,
+                Notebooks.all(ctx).flatMap { nb -> listOf(nb.title) + nb.blocks.filter { it.heading }.map { it.text } })
         } catch (e: Exception) {
             Log.e("Nerdly", "transcription failed", e)
             NoteStore.upsert(ctx, note.copy(failed = true))

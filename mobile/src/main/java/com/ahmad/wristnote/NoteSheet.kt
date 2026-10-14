@@ -41,6 +41,9 @@ object NoteSheet {
                     NoteStore.upsert(activity, note.copy(kind = "idea", summary = null))
                 }
             }
+            if (note.kind == "idea" && Notebooks.all(activity).isNotEmpty()) {
+                s.action(R.drawable.ic_list, "ضيفها لنوتة") { pickNotebook(activity, ui, note, text) }
+            }
             for ((label, pkg) in Share.targets(activity)) {
                 val icon = if (pkg == Share.KEEP) R.drawable.ic_bulb else R.drawable.ic_note
                 s.action(icon, "حفظ في $label") { activity.startActivity(Share.intent(text, pkg)) }
@@ -63,5 +66,33 @@ object NoteSheet {
             Toast.makeText(activity, "اتحذفت", Toast.LENGTH_SHORT).show()
         }
         s.show()
+    }
+
+    /** Manual fallback when the voice command wasn't recognised. */
+    private fun pickNotebook(activity: Activity, ui: Ui, note: Note, text: String) {
+        val s = Sheet(activity, ui)
+        s.title("تتضاف فين؟")
+        for (nb in Notebooks.all(activity)) {
+            s.action(R.drawable.ic_list, nb.title) {
+                val headings = nb.blocks.filter { it.heading }
+                if (headings.isEmpty()) add(activity, note, nb.id, null, text)
+                else {
+                    val h = Sheet(activity, ui)
+                    h.title("تحت أنهي عنوان في «${nb.title}»؟")
+                    headings.forEach { b -> h.action(R.drawable.ic_add, b.text) { add(activity, note, nb.id, b.id, text) } }
+                    h.action(R.drawable.ic_add, "في آخر النوتة") { add(activity, note, nb.id, null, text) }
+                    h.show()
+                }
+            }
+        }
+        s.show()
+    }
+
+    private fun add(activity: Activity, note: Note, nbId: Long, anchor: Long?, text: String) {
+        val nb = Notebooks.addItem(activity, nbId, anchor, text) ?: return
+        val heading = anchor?.let { id -> nb.blocks.firstOrNull { it.id == id }?.text }
+        NoteStore.upsert(activity, note.copy(kind = "note",
+            summary = "اتضافت في ${nb.title}" + (heading?.let { " ← $it" } ?: "")))
+        Toast.makeText(activity, "اتضافت في ${nb.title}", Toast.LENGTH_SHORT).show()
     }
 }
