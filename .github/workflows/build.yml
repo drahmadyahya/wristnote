@@ -27,7 +27,13 @@ jobs:
           gradle-version: "8.10.2"
 
       - name: Build
-        run: gradle --no-daemon :wear:assembleRelease :mobile:assembleRelease
+        run: |
+          set -o pipefail
+          gradle --no-daemon :wear:assembleRelease :mobile:assembleRelease 2>&1 | tee build.log || {
+            msg=$(grep -E "^e: |error:|ERROR:|What went wrong" -A3 build.log | head -60 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error title=Build failed::$msg"
+            exit 1
+          }
 
       - name: Collect
         run: |
