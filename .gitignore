@@ -1,0 +1,9 @@
+.gradle/
+build/
+*/build/
+local.properties
+.idea/
+*.iml
+.cxx/
+*/.cxx/
+mobile/src/main/cpp/whisper.cpp/

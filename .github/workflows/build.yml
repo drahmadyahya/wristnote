@@ -1,0 +1,49 @@
+name: Build APKs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get whisper.cpp
+        run: git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp mobile/src/main/cpp/whisper.cpp
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Build
+        run: gradle --no-daemon :wear:assembleRelease :mobile:assembleRelease
+
+      - name: Collect
+        run: |
+          mkdir out
+          cp wear/build/outputs/apk/release/wear-release.apk out/WristNote-watch.apk
+          cp mobile/build/outputs/apk/release/mobile-release.apk out/WristNote-phone.apk
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: out/*.apk
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ github.run_number }}" out/*.apk \
+            --title "Build ${{ github.run_number }}" --notes "APKs for phone and watch"
