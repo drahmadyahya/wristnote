@@ -36,10 +36,10 @@ class RecordView(context: Context) : View(context) {
     private val levels = FloatArray(bars)
     private var head = 0
 
-    private val teal = Color.parseColor("#4FD1BE")
-    private val tealDim = Color.parseColor("#163330")
+    private val teal = Color.parseColor("#F2BE3C")
+    private val tealDim = Color.parseColor("#3A2F12")
     private val rec = Color.parseColor("#FF5C5C")
-    private val muted = Color.parseColor("#8A9694")
+    private val muted = Color.parseColor("#9C978C")
 
     private val medium: Typeface = context.resources.getFont(R.font.plex_medium)
     private val regular: Typeface = context.resources.getFont(R.font.plex_regular)

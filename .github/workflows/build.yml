@@ -29,8 +29,8 @@ jobs:
       - name: Build
         run: |
           set -o pipefail
-          gradle --no-daemon :wear:assembleRelease :mobile:assembleRelease 2>&1 | tee build.log || {
-            msg=$(grep -E "^e: |error:|ERROR:|What went wrong" -A3 build.log | head -60 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+          gradle --no-daemon :mobile:testReleaseUnitTest :wear:assembleRelease :mobile:assembleRelease 2>&1 | tee build.log || {
+            msg=$(grep -E "^e: |error:|ERROR:|What went wrong|FAILED|expected:|Exception" -A2 build.log | head -60 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
             echo "::error title=Build failed::$msg"
             exit 1
           }
@@ -38,8 +38,8 @@ jobs:
       - name: Collect
         run: |
           mkdir out
-          cp wear/build/outputs/apk/release/wear-release.apk out/WristNote-watch.apk
-          cp mobile/build/outputs/apk/release/mobile-release.apk out/WristNote-phone.apk
+          cp wear/build/outputs/apk/release/wear-release.apk out/NerdlyTask-watch.apk
+          cp mobile/build/outputs/apk/release/mobile-release.apk out/NerdlyTask-phone.apk
           ls -la out
 
       - uses: actions/upload-artifact@v4

@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_bg">#10201E</color>
-    <color name="bg">#F1F3F5</color>
+    <color name="ic_bg">#F0B429</color>
+    <color name="bg">#F5F5F2</color>
     <color name="surface">#FFFFFF</color>
-    <color name="ink">#15191F</color>
-    <color name="muted">#66707C</color>
-    <color name="line">#D9DEE3</color>
-    <color name="accent">#0F7B6C</color>
-    <color name="accent_soft">#DCEFEB</color>
-    <color name="on_accent">#FFFFFF</color>
-    <color name="danger">#C8382F</color>
+    <color name="ink">#1E1B16</color>
+    <color name="muted">#6E6A62</color>
+    <color name="line">#E3E0D8</color>
+    <color name="accent">#F0B429</color>
+    <color name="accent_text">#9A6700</color>
+    <color name="accent_soft">#FCEFCC</color>
+    <color name="on_accent">#1E1B16</color>
+    <color name="danger">#C2412D</color>
 </resources>

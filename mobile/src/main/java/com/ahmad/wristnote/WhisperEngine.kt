@@ -3,22 +3,53 @@ package com.ahmad.wristnote
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.ceil
 
 /** Offline speech-to-text using whisper.cpp. One loaded model, one job at a time. */
 object WhisperEngine {
     init { System.loadLibrary("wristnote") }
 
     private var ctx = 0L
+    private var loadedPath: String? = null
+
+    // Primes Whisper for Egyptian Arabic and for the command words we listen for,
+    // so it spells them the way the command parser expects.
+    private const val PROMPT =
+        "كلام بالعامية المصرية. فكرني بكرة الساعة خمسة ونص. ظبطلي المنبه الساعة ستة الصبح. احفظ المعاد ده في التقويم. ضيف في نوتة الشغل تحت عنوان المهام."
 
     @Synchronized
-    fun transcribe(model: File, wav: File): String {
-        if (ctx == 0L) {
+    fun transcribe(model: File, wav: File, fast: Boolean): String {
+        if (ctx == 0L || loadedPath != model.absolutePath) {
+            if (ctx != 0L) nativeFree(ctx)
             ctx = nativeInit(model.absolutePath)
+            loadedPath = model.absolutePath
             check(ctx != 0L) { "model failed to load" }
         }
         val samples = readWav(wav)
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
-        return String(nativeTranscribe(ctx, samples, threads), Charsets.UTF_8).trim()
+        // Shorter audio context = much faster encoder for short clips.
+        val seconds = samples.size / 16000.0
+        val audioCtx = if (fast) 0 else (ceil(seconds * 50).toInt() + 160).coerceIn(640, 1500)
+        val raw = String(
+            nativeTranscribe(ctx, samples, threads, PROMPT.toByteArray(Charsets.UTF_8), audioCtx),
+            Charsets.UTF_8
+        )
+        return clean(raw)
+    }
+
+    /** Removes Whisper's well-known Arabic hallucinations and prompt echoes. */
+    fun clean(text: String): String {
+        var t = text.replace(Regex("""[\[(（][^\])）]{0,30}[\])）]"""), " ")
+        val junk = listOf(
+            "ترجمة نانسي قنقر", "نانسي قنقر", "اشتركوا في القناة", "اشترك في القناة",
+            "شكرا للمشاهدة", "شكراً للمشاهدة", "شكرا على المشاهدة", "لا تنسوا الاشتراك",
+            "كلام بالعامية المصرية", "موسيقى",
+        )
+        junk.forEach { t = t.replace(it, " ") }
+        // collapse a sentence repeated back-to-back (a common decoder loop)
+        val parts = t.split(Regex("(?<=[.!؟?،])\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
+        val dedup = parts.filterIndexed { i, s -> i == 0 || s != parts[i - 1] }
+        return dedup.joinToString(" ").replace(Regex("\\s+"), " ").trim().trimEnd('.', '،')
     }
 
     /** 16 kHz mono 16-bit PCM WAV -> floats in [-1, 1]. Finds the data chunk. */
@@ -40,10 +71,10 @@ object WhisperEngine {
         val shorts = ByteBuffer.wrap(bytes, dataStart, dataLen).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         val out = FloatArray(shorts.remaining())
         for (i in out.indices) out[i] = shorts.get(i) / 32768f
-        // whisper needs at least ~1s; pad short clips with silence
         return if (out.size < 16000) out.copyOf(16000) else out
     }
 
     private external fun nativeInit(path: String): Long
-    private external fun nativeTranscribe(ctx: Long, samples: FloatArray, threads: Int): ByteArray
+    private external fun nativeFree(ctx: Long)
+    private external fun nativeTranscribe(ctx: Long, samples: FloatArray, threads: Int, prompt: ByteArray, audioCtx: Int): ByteArray
 }

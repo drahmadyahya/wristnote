@@ -5,9 +5,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-data class Note(val id: Long, val text: String?, val audio: String, val failed: Boolean = false)
+/**
+ * A captured thought. `kind` says what it turned into:
+ * idea | alarm | reminder | event | note ; `summary` is the one-line result.
+ */
+data class Note(
+    val id: Long,
+    val text: String?,
+    val audio: String,
+    val failed: Boolean = false,
+    val kind: String = "idea",
+    val summary: String? = null,
+)
 
-/** Tiny JSON-file store for notes. */
 object NoteStore {
     @Volatile var version = 0L
         private set
@@ -21,16 +31,16 @@ object NoteStore {
         val arr = try { JSONArray(f.readText()) } catch (_: Exception) { JSONArray() }
         return (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
-            Note(o.getLong("id"), if (o.isNull("text")) null else o.getString("text"),
-                o.getString("audio"), o.optBoolean("failed"))
+            Note(
+                o.getLong("id"), if (o.isNull("text")) null else o.getString("text"),
+                o.getString("audio"), o.optBoolean("failed"),
+                o.optString("kind", "idea"), if (o.isNull("summary")) null else o.optString("summary", null),
+            )
         }.sortedByDescending { it.id }
     }
 
     @Synchronized
-    fun upsert(ctx: Context, note: Note) {
-        val list = all(ctx).filter { it.id != note.id } + note
-        save(ctx, list)
-    }
+    fun upsert(ctx: Context, note: Note) = save(ctx, all(ctx).filter { it.id != note.id } + note)
 
     @Synchronized
     fun get(ctx: Context, id: Long) = all(ctx).firstOrNull { it.id == id }
@@ -46,7 +56,8 @@ object NoteStore {
         val arr = JSONArray()
         list.forEach {
             arr.put(JSONObject().put("id", it.id).put("text", it.text ?: JSONObject.NULL)
-                .put("audio", it.audio).put("failed", it.failed))
+                .put("audio", it.audio).put("failed", it.failed)
+                .put("kind", it.kind).put("summary", it.summary ?: JSONObject.NULL))
         }
         val tmp = File(ctx.filesDir, "notes.json.tmp")
         tmp.writeText(arr.toString())

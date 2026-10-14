@@ -10,6 +10,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import java.io.File
 
+/** Speech -> text -> (command | idea). Runs one clip at a time. */
 class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
 
     override fun doWork(): Result {
@@ -17,38 +18,58 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
         val id = inputData.getLong(KEY_ID, -1L)
         val note = NoteStore.get(ctx, id) ?: return Result.success()
         if (note.text != null) return Result.success()
-        // No model yet: leave the note pending; the app re-queues it after download.
-        if (!ModelManager.isReady(ctx)) {
+        val model = ModelManager.usable(ctx)
+        if (model == null) {
             Notifier.waitingForModel(ctx)
             return Result.success()
         }
-        return try {
-            val text = WhisperEngine.transcribe(ModelManager.file(ctx), File(note.audio))
-            val updated = note.copy(text = text.ifBlank { "(مسمعناش كلام واضح)" }, failed = false)
-            NoteStore.upsert(ctx, updated)
-            Notifier.newNote(ctx, updated)
-            Result.success()
+        val text = try {
+            WhisperEngine.transcribe(ModelManager.file(ctx, model), File(note.audio), model == ModelManager.Model.FAST)
         } catch (e: Exception) {
-            Log.e("WristNote", "transcription failed", e)
+            Log.e("Nerdly", "transcription failed", e)
             NoteStore.upsert(ctx, note.copy(failed = true))
-            Result.success()
+            return Result.success()
         }
+        if (text.isBlank()) {
+            NoteStore.upsert(ctx, note.copy(text = "(مسمعناش كلام واضح)", failed = false))
+            return Result.success()
+        }
+        process(ctx, note.copy(text = text, failed = false))
+        return Result.success()
     }
 
     companion object {
         private const val KEY_ID = "id"
 
+        /** Turns the text into a command if it is one, otherwise keeps it as an idea. */
+        fun process(ctx: Context, note: Note) {
+            val cmd = try {
+                CommandParser.parse(note.text ?: "", Notebooks.all(ctx).map { it.ref() }, System.currentTimeMillis())
+            } catch (e: Exception) { Log.e("Nerdly", "parse failed", e); null }
+            if (cmd == null) {
+                val n = note.copy(kind = "idea", summary = null)
+                NoteStore.upsert(ctx, n)
+                Notifier.newIdea(ctx, n)
+                return
+            }
+            val r = try { Actions.run(ctx, cmd) } catch (e: Exception) {
+                Log.e("Nerdly", "action failed", e); Actions.Result("idea", "مقدرناش ننفّذ الأمر", false)
+            }
+            val n = note.copy(kind = r.kind, summary = r.summary)
+            NoteStore.upsert(ctx, n)
+            Notifier.commandDone(ctx, n, r.ok)
+        }
+
         fun enqueue(ctx: Context, id: Long) {
             val req = OneTimeWorkRequestBuilder<TranscribeWorker>()
                 .setInputData(workDataOf(KEY_ID to id))
                 .build()
-            // One queue: whisper is CPU-heavy, so clips are processed in order.
             WorkManager.getInstance(ctx)
                 .enqueueUniqueWork("transcribe", ExistingWorkPolicy.APPEND_OR_REPLACE, req)
         }
 
         fun enqueuePending(ctx: Context) {
-            NoteStore.all(ctx).filter { it.text == null }.sortedBy { it.id }
+            NoteStore.all(ctx).filter { it.text == null && !it.failed }.sortedBy { it.id }
                 .forEach { enqueue(ctx, it.id) }
         }
     }
