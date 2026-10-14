@@ -19,6 +19,8 @@ sealed class Command {
     /** anchorId: a heading (add at end of its section) or an item (add right after it). */
     data class AddToNote(val notebookId: Long, val anchorId: Long?, val text: String,
                          val newHeading: String? = null) : Command()
+    /** "اعملي نوتة اسمها X وضيف جواها Y" */
+    data class CreateNotebook(val title: String, val heading: String?, val items: List<String>) : Command()
     /** User clearly asked for a notebook we don't have. */
     data class NoteNotFound(val name: String, val text: String) : Command()
 }
@@ -364,7 +366,8 @@ object CommandParser {
         val t = Toks(text)
         if (t.size == 0) return null
 
-        addToNote(t, notebooks)?.let { return it }
+        createNotebook(t)?.let { return it }
+        addToNote(Toks(text), notebooks)?.let { return it }
 
         // alarm
         val alarmIdx = (0 until t.size).firstOrNull { t[it] in ALARM_WORDS }
@@ -408,6 +411,60 @@ object CommandParser {
             }
         }
         return null
+    }
+
+    private val CREATE_VERBS = setOf("اعملي", "اعمل", "عملي", "اعمليلي", "اعملها", "انشئ", "انشئلي", "انشا", "افتح",
+        "افتحلي", "افتحي", "جهزلي", "سويلي", "ابدا", "ابدالي")
+    private val NEW_WORDS = setOf("جديده", "جديد", "لي", "ليا", "كده", "واحده")
+    private val NAME_WORDS = setOf("اسمها", "اسمه", "بعنوان", "عنوانها", "باسم", "تسميها", "سميها", "سميتها", "نسميها")
+    private val SPLIT_WORDS = setOf("وضيف", "ضيف", "وضيفي", "ضيفي", "وضيفلي", "ضيفلي", "وحط", "حط", "وحطلي", "حطلي",
+        "وفيها", "فيها", "جواها", "وجواها", "واكتب", "اكتب", "واكتبلي", "وزود", "زود", "وسجل", "سجل", "وتحتها", "وبنودها")
+    private val ITEM_LEAD = setOf("جواها", "فيها", "فيه", "عليها", "تحتها", "بند", "بنود", "البنود", "دي", "دول",
+        "الحاجات", "حاجات", "كمان", "الاتي", "التالي")
+
+    private fun createNotebook(t: Toks): Command.CreateNotebook? {
+        val c = (0 until minOf(5, t.size)).firstOrNull { t[it] in CONTAINERS } ?: return null
+        val verb = (0 until c).firstOrNull { t[it] in CREATE_VERBS }
+        if (verb == null && t[c + 1] !in NEW_WORDS) return null
+        var s = c + 1
+        while (t[s] in NEW_WORDS || t[s] in NAME_WORDS) s++
+        if (s >= t.size) return null
+        val split = (s + 1 until t.size).firstOrNull { t[it] in SPLIT_WORDS }
+        val titleEnd = split ?: minOf(t.size, s + 6)
+        val title = (s until titleEnd).joinToString(" ") { t.raw[it] }.trim('،', ',', '.', ':', ' ')
+        if (title.isBlank()) return null
+        var heading: String? = null
+        var items = ""
+        var j = split?.plus(1) ?: titleEnd
+        while (t[j] in ITEM_LEAD) j++
+        if (t[j] == "تحت") {
+            j++
+            while (t[j] in HEADING_WORDS) j++
+            if (j < t.size) { heading = t.raw[j].trim('،', ',', ':', '.'); j++ }
+        }
+        if (j < t.size) items = trimLead((j until t.size).joinToString(" ") { t.raw[it] })
+        return Command.CreateNotebook(title, heading, if (items.isBlank()) emptyList() else splitItems(items))
+    }
+
+    private val WAW_WORDS = setOf("ورق", "ورقه", "وقت", "ولاد", "وزن", "وش", "وسط", "ورد", "واجب", "وصفه", "واحد", "واحده",
+        "وزاره", "وظيفه", "وجبه", "وضع", "وصل", "وصول", "ودان", "وراك", "ورا", "وراه", "وحش", "وحشه", "وسخ")
+
+    /**
+     * Splits a spoken list into items: on commas, or on "و" joining short
+     * phrases ("لبن وعيش وجبنة", "نراجع العقد واتصل بالمحامي").
+     */
+    fun splitItems(text: String): List<String> {
+        val byComma = text.split(Regex("[،,؛;]")).map { it.trim() }.filter { it.isNotEmpty() }
+        if (byComma.size > 1) return byComma
+        val words = text.trim().split(Regex("\\s+"))
+        val parts = mutableListOf(mutableListOf<String>())
+        for ((i, w) in words.withIndex()) {
+            val n = Ar.token(w)
+            val joins = i > 0 && n.startsWith("و") && n.length >= 3 && n !in WAW_WORDS && n.drop(1) !in setOf("ال")
+            if (joins) parts.add(mutableListOf(w.substring(w.indexOf('و') + 1))) else parts.last().add(w)
+        }
+        val clean = parts.map { it.joinToString(" ").trim() }.filter { it.isNotEmpty() }
+        return if (clean.size > 1 && clean.all { it.split(" ").size <= 4 }) clean else listOf(text.trim())
     }
 
     private fun addToNote(t: Toks, notebooks: List<NotebookRef>): Command? {

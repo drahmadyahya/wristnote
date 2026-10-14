@@ -107,4 +107,28 @@ class CommandParserTest {
     @Test fun alarmStillWorksWithAddVerb() {
         assertTrue(p("حطلي منبه الساعة ٧ الصبح") is Command.Alarm)
     }
+
+    @Test fun createWithItems() {
+        val c = p("اعملي نوتة اسمها المشتريات وضيف جواها لبن وعيش") as Command.CreateNotebook
+        assertEquals("المشتريات", c.title); assertNull(c.heading); assertEquals(listOf("لبن", "عيش"), c.items)
+    }
+    @Test fun createEmpty() {
+        val c = p("اعملي نوتة جديدة اسمها رحلة الغردقة") as Command.CreateNotebook
+        assertEquals("رحلة الغردقة", c.title); assertTrue(c.items.isEmpty())
+    }
+    @Test fun createWithHeading() {
+        val c = p("افتحلي نوتة الكورس وحط فيها تحت عنوان المحاضرات المحاضرة الاولى") as Command.CreateNotebook
+        assertEquals("الكورس", c.title); assertEquals("المحاضرات", c.heading); assertEquals(listOf("المحاضرة الاولى"), c.items)
+    }
+    @Test fun createWithComma() {
+        val c = p("اعملي نوتة اسمها السفر، وضيف فيها الباسبور، الشاحن، النضارة") as Command.CreateNotebook
+        assertEquals("السفر", c.title); assertEquals(listOf("الباسبور", "الشاحن", "النضارة"), c.items)
+    }
+    @Test fun splitTasks() {
+        assertEquals(listOf("نراجع العقد", "اتصل بالمحامي"), CommandParser.splitItems("نراجع العقد واتصل بالمحامي"))
+        assertEquals(listOf("اشتري ورق", "قلم"), CommandParser.splitItems("اشتري ورق وقلم"))
+    }
+    @Test fun addIntoExistingIsNotCreate() {
+        assertTrue(p("ضيف في نوتة الشغل تحت المهام نراجع العقد") is Command.AddToNote)
+    }
 }

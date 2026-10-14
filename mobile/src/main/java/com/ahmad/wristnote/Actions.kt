@@ -34,6 +34,7 @@ object Actions {
         is Command.Reminder -> reminder(ctx, cmd)
         is Command.Event -> event(ctx, cmd)
         is Command.AddToNote -> addToNote(ctx, cmd)
+        is Command.CreateNotebook -> createNotebook(ctx, cmd)
         is Command.NoteNotFound -> Result("idea",
             if (cmd.name.isBlank()) "مفيش نوتة بالاسم ده، اتحفظت كفكرة" else "مفيش نوتة اسمها «${cmd.name}»، اتحفظت كفكرة", false)
     }
@@ -151,14 +152,42 @@ object Actions {
         return null
     }
 
+    // ───── create notebook ─────
+    private fun createNotebook(ctx: Context, c: Command.CreateNotebook): Result {
+        val key = Ar.key(Ar.token(c.title))
+        val existing = Notebooks.all(ctx).firstOrNull { nb ->
+            Ar.key(Ar.token(nb.title)).let { it == key || Ar.close(it, key) }
+        }
+        val nb = existing ?: Notebook(Notebooks.newId(), c.title, emptyList()).also { Notebooks.put(ctx, it) }
+        val heading = c.heading
+        for (item in c.items) Notebooks.addItem(ctx, nb.id, null, item, heading)
+        if (c.items.isEmpty() && heading != null) {
+            val cur = Notebooks.get(ctx, nb.id)!!
+            Notebooks.put(ctx, cur.copy(blocks = cur.blocks + Block(Notebooks.newId(), true, heading)))
+        }
+        val count = if (c.items.isEmpty()) "" else " وفيها ${itemsText(c.items.size)}"
+        val summary = if (existing != null) "النوتة «${nb.title}» موجودة$count" else "اتعملت نوتة «${nb.title}»$count"
+        return Result("note", summary, true)
+    }
+
+    private fun itemsText(n: Int) = when (n) { 1 -> "بند واحد"; 2 -> "بندين"; in 3..10 -> "${Fmt.num(n)} بنود"; else -> "${Fmt.num(n)} بند" }
+
     // ───── add to notebook ─────
     private fun addToNote(ctx: Context, c: Command.AddToNote): Result {
-        val nb = Notebooks.addItem(ctx, c.notebookId, c.anchorId, c.text, c.newHeading)
-            ?: return Result("note", "النوتة اتمسحت", false)
+        val items = CommandParser.splitItems(c.text)
+        var nb: Notebook? = null
+        var anchor = c.anchorId
+        for (item in items) {
+            nb = Notebooks.addItem(ctx, c.notebookId, anchor, item, if (anchor == c.anchorId) c.newHeading else null)
+                ?: return Result("note", "النوتة اتمسحت", false)
+            // keep later items in order, right after the previous one
+            anchor = nb.blocks.lastOrNull { !it.heading && it.text == item }?.id
+        }
+        val book = nb ?: return Result("note", "مفيش حاجة تتضاف", false)
         // find the heading the new item ended up under
-        val idx = nb.blocks.indexOfLast { !it.heading && it.text == c.text }
-        val heading = (idx downTo 0).firstOrNull { nb.blocks[it].heading }?.let { nb.blocks[it].text }
-        val where = if (heading != null) "${nb.title} ← $heading" else nb.title
+        val idx = book.blocks.indexOfLast { !it.heading && it.text == items.last() }
+        val heading = (idx downTo 0).firstOrNull { book.blocks[it].heading }?.let { book.blocks[it].text }
+        val where = if (heading != null) "${book.title} ← $heading" else book.title
         val extra = if (c.newHeading != null && heading == c.newHeading) " (عنوان جديد)" else ""
         return Result("note", "اتضافت في $where$extra", true)
     }
