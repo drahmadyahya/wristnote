@@ -79,6 +79,20 @@ object Notifier {
         notify(ctx, (at / 1000 % Int.MAX_VALUE).toInt(), b)
     }
 
+    /** Quiet ongoing notification while a thought is being transcribed. */
+    fun working(ctx: Context): android.app.Notification {
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(NotificationChannel("work", "التحويل لنص", NotificationManager.IMPORTANCE_LOW))
+        return NotificationCompat.Builder(ctx, "work")
+            .setSmallIcon(R.drawable.ic_stat_logo)
+            .setColor(ctx.getColor(R.color.ic_bg))
+            .setContentTitle("بحوّل فكرتك لنص…")
+            .setOngoing(true)
+            .setSilent(true)
+            .setProgress(0, 0, true)
+            .build()
+    }
+
     fun waitingForModel(ctx: Context) {
         channels(ctx)
         notify(ctx, WAITING_ID, base(ctx, NOTES, "وصلت فكرة من الساعة", "افتح Nerdly Task ونزّل ملف التحويل لنص عشان تتكتب"))

@@ -26,10 +26,11 @@ object WhisperEngine {
             check(ctx != 0L) { "model failed to load" }
         }
         val samples = readWav(wav)
-        val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+        // performance cores only (S24 Ultra: 1 X4 + 5 A720); the efficiency cores slow everyone down
+        val threads = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(2, 6)
         // Shorter audio context = much faster encoder for short clips.
         val seconds = samples.size / 16000.0
-        val audioCtx = if (fast) 0 else (ceil(seconds * 50).toInt() + 160).coerceIn(640, 1500)
+        val audioCtx = if (fast) 0 else (ceil(seconds * 50).toInt() + 96).coerceIn(448, 1500)
         val raw = String(
             nativeTranscribe(ctx, samples, threads, prompt(hints).toByteArray(Charsets.UTF_8), audioCtx),
             Charsets.UTF_8

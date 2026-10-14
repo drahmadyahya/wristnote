@@ -38,8 +38,7 @@ Java_com_ahmad_wristnote_WhisperEngine_nativeTranscribe(JNIEnv *env, jobject, jl
         env->GetByteArrayRegion(jprompt, 0, pl, reinterpret_cast<jbyte *>(&prompt[0]));
     }
 
-    whisper_full_params p = whisper_full_default_params(WHISPER_SAMPLING_BEAM_SEARCH);
-    p.beam_search.beam_size = 3;
+    whisper_full_params p = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     p.language = "ar";
     p.translate = false;
     p.n_threads = threads;

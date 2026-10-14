@@ -24,6 +24,11 @@ object SettingsSheet {
         Perm("التقويم", "عشان \"احفظ المعاد\" يتسجل في تقويمك",
             ctx.checkSelfPermission(Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
         ) { it.requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR), 3) },
+        Perm("الشغل في الخلفية", "عشان الأفكار تتكتب بسرعة والموبايل مقفول",
+            ctx.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(ctx.packageName)
+        ) {
+            it.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${it.packageName}")))
+        },
         Perm("الظهور فوق التطبيقات", "عشان المنبه يتظبط في تطبيق الساعة لوحده",
             Settings.canDrawOverlays(ctx)
         ) { it.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${it.packageName}"))) },

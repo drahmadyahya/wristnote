@@ -2,7 +2,10 @@ package com.ahmad.wristnote
 
 import android.content.Context
 import android.util.Log
+import android.content.pm.ServiceInfo
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ForegroundInfo
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
@@ -13,8 +16,18 @@ import java.io.File
 /** Speech -> text -> (command | idea). Runs one clip at a time. */
 class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
 
+    /**
+     * Runs as a foreground job so Android keeps it on the fast CPU cores;
+     * in the background Samsung pins it to the slow ones.
+     */
+    override fun getForegroundInfo(): ForegroundInfo {
+        val n = Notifier.working(applicationContext)
+        return ForegroundInfo(WORKING_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+    }
+
     override fun doWork(): Result {
         val ctx = applicationContext
+        try { setForegroundAsync(getForegroundInfo()).get() } catch (_: Exception) { /* not allowed now: run anyway */ }
         val id = inputData.getLong(KEY_ID, -1L)
         val note = NoteStore.get(ctx, id) ?: return Result.success()
         if (note.text != null) return Result.success()
@@ -41,6 +54,7 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
 
     companion object {
         private const val KEY_ID = "id"
+        private const val WORKING_ID = 7
 
         /** Turns the text into a command if it is one, otherwise keeps it as an idea. */
         fun process(ctx: Context, note: Note) {
@@ -64,6 +78,7 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
         fun enqueue(ctx: Context, id: Long) {
             val req = OneTimeWorkRequestBuilder<TranscribeWorker>()
                 .setInputData(workDataOf(KEY_ID to id))
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .build()
             WorkManager.getInstance(ctx)
                 .enqueueUniqueWork("transcribe", ExistingWorkPolicy.APPEND_OR_REPLACE, req)

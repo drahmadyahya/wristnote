@@ -10,8 +10,8 @@ set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
-# Every Galaxy phone from the last several years supports fp16 + dotprod.
-set(GGML_CPU_ARM_ARCH "armv8.2-a+fp16+dotprod" CACHE STRING "" FORCE)
+# Built for the S24 Ultra (Snapdragon 8 Gen 3): fp16, dotprod and i8mm matrix instructions.
+set(GGML_CPU_ARM_ARCH "armv8.2-a+fp16+dotprod+i8mm" CACHE STRING "" FORCE)
 
 add_subdirectory(whisper.cpp)
 
