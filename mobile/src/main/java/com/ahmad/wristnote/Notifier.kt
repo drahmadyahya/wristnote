@@ -30,18 +30,19 @@ object Notifier {
         ensureChannel(ctx)
         val text = note.text ?: return
         val b = NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("فكرة جديدة من الساعة")
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle("فكرة جديدة")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(openApp(ctx))
             .setAutoCancel(true)
+            .setColor(ctx.getColor(R.color.accent))
         Share.targets(ctx).forEachIndexed { i, (label, pkg) ->
             val pi = PendingIntent.getActivity(
                 ctx, (note.id % 100000).toInt() * 10 + i, Share.intent(text, pkg),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
-            b.addAction(0, "احفظ في $label", pi)
+            b.addAction(0, "حفظ في $label", pi)
         }
         notify(ctx, (note.id % Int.MAX_VALUE).toInt(), b)
     }
@@ -49,11 +50,12 @@ object Notifier {
     fun waitingForModel(ctx: Context) {
         ensureChannel(ctx)
         val b = NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle("وصلت فكرة من الساعة")
-            .setContentText("افتح التطبيق ونزّل ملف التحويل لنص مرة واحدة")
+            .setContentText("افتح التطبيق ونزّل ملف التحويل لنص عشان تتكتب")
             .setContentIntent(openApp(ctx))
             .setAutoCancel(true)
+            .setColor(ctx.getColor(R.color.accent))
         notify(ctx, WAITING_ID, b)
     }
 

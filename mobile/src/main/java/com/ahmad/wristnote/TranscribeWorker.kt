@@ -24,7 +24,7 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
         }
         return try {
             val text = WhisperEngine.transcribe(ModelManager.file(ctx), File(note.audio))
-            val updated = note.copy(text = text.ifBlank { "(مفيش كلام واضح)" }, failed = false)
+            val updated = note.copy(text = text.ifBlank { "(مسمعناش كلام واضح)" }, failed = false)
             NoteStore.upsert(ctx, updated)
             Notifier.newNote(ctx, updated)
             Result.success()

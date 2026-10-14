@@ -3,9 +3,6 @@ package com.ahmad.wristnote
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -14,196 +11,165 @@ import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.util.TypedValue
-import android.view.Gravity
 import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
 import com.google.android.gms.wearable.Asset
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.log10
+import kotlin.math.sqrt
 
 /**
- * Opens straight into recording. Tap the big button to stop; the clip is handed
- * to the Wear Data Layer, which delivers it to the phone now or whenever the
- * phone reconnects.
+ * Opens straight into recording.
+ *  - tap anywhere: save and send to the phone
+ *  - swipe right (system back): discard
+ *  - screen off / palm cover: save
  */
 class RecordActivity : Activity() {
 
-    private enum class State { IDLE, RECORDING, DONE }
-
     private val handler = Handler(Looper.getMainLooper())
-    private var state = State.IDLE
+    private lateinit var view: RecordView
     private var recorder: AudioRecord? = null
     private var readThread: Thread? = null
     @Volatile private var keepReading = false
     private val pcm = ByteArrayOutputStream()
     private var startedAt = 0L
-
-    private lateinit var timerText: TextView
-    private lateinit var button: TextView
-    private lateinit var hintText: TextView
+    private var recording = false
+    private var done = false
 
     private val tick = object : Runnable {
         override fun run() {
-            if (state != State.RECORDING) return
-            val sec = (System.currentTimeMillis() - startedAt) / 1000
-            timerText.text = String.format("%d:%02d", sec / 60, sec % 60)
-            if (sec >= MAX_SECONDS) stopAndSend() else handler.postDelayed(this, 250)
+            if (!recording) return
+            view.elapsedMs = System.currentTimeMillis() - startedAt
+            view.invalidate()
+            if (view.elapsedMs >= MAX_MS) stop(save = true) else handler.postDelayed(this, 100)
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        buildUi()
+        view = RecordView(this).apply {
+            maxMs = MAX_MS
+            setOnClickListener { onTap() }
+        }
+        setContentView(view)
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            startRecording()
+            start()
         } else {
-            hintText.text = "اسمح بالمايك"
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
         }
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        if (code == REQ_MIC && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            startRecording()
-        } else {
-            hintText.text = "محتاج إذن المايك"
-        }
+        if (code == REQ_MIC && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) start()
+        else { done = true; view.show(RecordView.Mode.NEED_MIC, "محتاج إذن المايك\nالمس عشان تسمح") }
     }
 
-    private fun buildUi() {
-        val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
-        val col = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-        }
-        timerText = TextView(this).apply {
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-            gravity = Gravity.CENTER
-            text = "0:00"
-        }
-        val size = dp(96)
-        button = TextView(this).apply {
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 34f)
-            typeface = Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#E5484D"))
-            }
-            text = "■"
-            setOnClickListener { onButton() }
-        }
-        hintText = TextView(this).apply {
-            setTextColor(Color.parseColor("#B0B0B0"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            gravity = Gravity.CENTER
-            text = "بيسجّل… اضغط للإيقاف"
-        }
-        col.addView(timerText, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(8) })
-        col.addView(button, LinearLayout.LayoutParams(size, size))
-        col.addView(hintText, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(8) })
-        root.addView(col, FrameLayout.LayoutParams(-1, -1))
-        setContentView(root)
-    }
-
-    private fun onButton() {
-        when (state) {
-            State.RECORDING -> stopAndSend()
-            State.DONE -> finish()
-            State.IDLE -> if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
+    private fun onTap() {
+        when {
+            recording -> stop(save = true)
+            view.mode == RecordView.Mode.NEED_MIC ->
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
+            done -> finish()
         }
     }
 
     @Suppress("MissingPermission")
-    private fun startRecording() {
-        if (state == State.RECORDING) return
+    private fun start() {
+        if (recording) return
         val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-        val bufSize = maxOf(minBuf, SAMPLE_RATE)
+        val chunk = SAMPLE_RATE / 20 * 2 // 50 ms of 16-bit audio
         val rec = try {
             AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SAMPLE_RATE,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufSize)
-        } catch (e: Exception) {
-            hintText.text = "المايك مش متاح"; return
-        }
-        if (rec.state != AudioRecord.STATE_INITIALIZED) {
-            rec.release(); hintText.text = "المايك مش متاح"; return
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, SAMPLE_RATE * 2))
+        } catch (e: Exception) { null }
+        if (rec == null || rec.state != AudioRecord.STATE_INITIALIZED) {
+            rec?.release()
+            done = true
+            view.show(RecordView.Mode.ERROR, "المايك مش متاح\nجرّب تاني")
+            return
         }
         pcm.reset()
         recorder = rec
         rec.startRecording()
         keepReading = true
         readThread = Thread {
-            val buf = ByteArray(bufSize)
+            val buf = ByteArray(chunk)
+            val sb = ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN)
             while (keepReading) {
                 val n = rec.read(buf, 0, buf.size)
-                if (n > 0) synchronized(pcm) { pcm.write(buf, 0, n) }
+                if (n <= 0) continue
+                synchronized(pcm) { pcm.write(buf, 0, n) }
+                var sum = 0.0
+                for (i in 0 until n / 2) { val s = sb.getShort(i * 2) / 32768.0; sum += s * s }
+                val rms = sqrt(sum / (n / 2).coerceAtLeast(1))
+                // map roughly -50 dB..-10 dB to 0..1
+                val db = 20 * log10(rms.coerceAtLeast(1e-5))
+                view.pushLevel(((db + 50) / 40).toFloat())
             }
         }.also { it.start() }
-        state = State.RECORDING
+        recording = true
         startedAt = System.currentTimeMillis()
-        button.text = "■"
-        hintText.text = "بيسجّل… اضغط للإيقاف"
-        buzz(40)
+        buzz(30)
         handler.post(tick)
     }
 
-    private fun stopAndSend() {
-        if (state != State.RECORDING) return
-        state = State.DONE
+    private fun stop(save: Boolean) {
+        if (!recording) return
+        recording = false
+        done = true
         handler.removeCallbacks(tick)
         keepReading = false
-        readThread?.join(1000)
+        readThread?.join(500)
         recorder?.run { try { stop() } catch (_: Exception) {}; release() }
         recorder = null
-        buzz(80)
+        if (!save) return
 
         val raw = synchronized(pcm) { pcm.toByteArray() }
-        button.text = "✓"
-        (button.background as GradientDrawable).setColor(Color.parseColor("#30A46C"))
-
-        if (raw.size < SAMPLE_RATE) { // under half a second
-            hintText.text = "قصير جدًا، اتلغى"
-            handler.postDelayed({ finish() }, 1200)
+        if (raw.size < SAMPLE_RATE) { // < 0.5 s
+            view.show(RecordView.Mode.SHORT, "قصيرة جدًا\nمتحفظتش")
+            handler.postDelayed({ finish() }, 1400)
             return
         }
+        buzz(60)
+        send(raw)
+    }
 
+    private fun send(raw: ByteArray) {
         val now = System.currentTimeMillis()
         val req = PutDataMapRequest.create("$PATH_PREFIX/$now").apply {
             dataMap.putAsset("audio", Asset.createFromBytes(wav(raw)))
             dataMap.putLong("time", now)
         }.asPutDataRequest().setUrgent()
 
-        hintText.text = "بيتبعت…"
         val app = applicationContext
+        val ui = !isFinishing
         Wearable.getDataClient(app).putDataItem(req)
             .addOnSuccessListener {
+                if (!ui) return@addOnSuccessListener
                 Wearable.getNodeClient(app).connectedNodes.addOnCompleteListener { t ->
                     val connected = t.isSuccessful && !t.result.isNullOrEmpty()
-                    hintText.text = if (connected) "اتبعت للموبايل" else "اتحفظ، هيتبعت لما الموبايل يتوصل"
-                    handler.postDelayed({ finish() }, 1500)
+                    if (connected) view.show(RecordView.Mode.SENT, "اتبعت")
+                    else view.show(RecordView.Mode.QUEUED, "اتحفظت\nهتتبعت لما الموبايل يتوصل")
+                    handler.postDelayed({ finish() }, if (connected) 1100 else 2000)
                 }
             }
             .addOnFailureListener {
-                hintText.text = "حصل خطأ في الإرسال"
-                (button.background as GradientDrawable).setColor(Color.parseColor("#E5484D"))
-                handler.postDelayed({ finish() }, 2500)
+                if (!ui) return@addOnFailureListener
+                view.show(RecordView.Mode.ERROR, "متبعتتش\nجرّب تاني")
+                handler.postDelayed({ finish() }, 2200)
             }
     }
 
     override fun onStop() {
         super.onStop()
-        // Leaving the app mid-recording (palm cover, swipe) still saves the note.
-        if (state == State.RECORDING) stopAndSend()
+        // Swipe-to-dismiss finishes the activity -> discard.
+        // Screen off / palm cover just stops it -> keep the thought.
+        if (recording) stop(save = !isFinishing)
     }
 
     private fun buzz(ms: Long) {
@@ -212,8 +178,6 @@ class RecordActivity : Activity() {
                 ?.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
         } catch (_: Exception) {}
     }
-
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun wav(pcmData: ByteArray): ByteArray {
         val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
@@ -227,7 +191,7 @@ class RecordActivity : Activity() {
 
     companion object {
         const val SAMPLE_RATE = 16000
-        const val MAX_SECONDS = 60
+        const val MAX_MS = 60_000L
         const val PATH_PREFIX = "/wristnote/voice"
         private const val REQ_MIC = 1
     }
