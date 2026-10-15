@@ -1,0 +1,101 @@
+name: Device tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/devtest/**", ".github/workflows/devtest.yml", "mobile/src/androidTest/**"]
+
+permissions:
+  contents: write
+
+jobs:
+  phone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Speech samples
+        run: |
+          .github/devtest/make_audio.sh mobile/src/androidTest/assets/speech
+          cp .github/devtest/phrases.txt mobile/src/androidTest/assets/speech/
+      - run: git clone -q --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp mobile/src/main/cpp/whisper.cpp
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.10.2" }
+      - name: Build for x86_64 emulator
+        run: gradle --no-daemon -Pabi=x86_64 :mobile:assembleRelease :mobile:assembleAndroidTest
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          ram-size: 4096M
+          disk-size: 6G
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          disable-animations: true
+          script: .github/devtest/phone.sh
+      - name: Publish results
+        if: always()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          ls -la devtest-out || true
+          gh release create "devtest-phone-${{ github.run_number }}" devtest-out/* --prerelease \
+            --title "Device test phone ${{ github.run_number }}" --notes "emulator results"
+
+  wear:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.10.2" }
+      - name: Build watch app
+        run: |
+          # the phone module needs whisper sources to configure
+          git clone -q --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp mobile/src/main/cpp/whisper.cpp
+          gradle --no-daemon :wear:assembleRelease
+      - name: Run on Wear OS emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: android-wear
+          arch: x86_64
+          profile: wearos_large_round
+          ram-size: 2048M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -no-snapshot -camera-back none
+          disable-animations: true
+          script: .github/devtest/wear.sh
+      - name: Publish results
+        if: always()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          ls -la devtest-out || true
+          gh release create "devtest-wear-${{ github.run_number }}" devtest-out/* --prerelease \
+            --title "Device test watch ${{ github.run_number }}" --notes "emulator results"
+
+  accuracy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - run: .github/devtest/make_audio.sh audio
+      - run: .github/devtest/accuracy.sh
+      - name: Publish results
+        if: always()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release create "devtest-accuracy-${{ github.run_number }}" devtest-out/* --prerelease \
+            --title "Accuracy ${{ github.run_number }}" --notes "model comparison"
