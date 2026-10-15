@@ -14,12 +14,13 @@ echo "# Accuracy: small (fast) vs large-v3-turbo (accurate), 4 CPU threads"
 while IFS='|' read -r -u 3 name text expect; do
   [ -z "$name" ] && continue
   echo; echo "## $name"; echo "said : $text"
-  for m in ggml-small-q5_1.bin ggml-large-v3-turbo-q5_0.bin; do
+  for v in "ggml-small-q5_1.bin|0|small" "ggml-small-q5_1.bin|768|small-ac768" "ggml-small-q5_1.bin|512|small-ac512" "ggml-large-v3-turbo-q5_0.bin|0|large"; do
+    IFS='|' read -r m ac label <<< "$v"
     s=$(date +%s.%N)
-    heard=$(/tmp/wc/build/bin/whisper-cli -m /tmp/$m -f audio/$name.wav -l ar -nt -np -t 4 -bs 1 -bo 1 -nf \
+    heard=$(/tmp/wc/build/bin/whisper-cli -m /tmp/$m -f audio/$name.wav -l ar -nt -np -t 4 -bs 1 -bo 1 -nf -ac $ac \
             --prompt "$PROMPT" </dev/null 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g')
     e=$(date +%s.%N)
-    printf '%-6s (%.1fs): %s\n' "${m:5:5}" "$(echo "$e - $s" | bc)" "$heard"
+    printf '%-12s (%.1fs): %s\n' "$label" "$(echo "$e - $s" | bc)" "$heard"
   done
 done 3< .github/devtest/phrases.txt
 } | tee $OUT/accuracy.md

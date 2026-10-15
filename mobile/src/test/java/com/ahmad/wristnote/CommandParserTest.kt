@@ -220,4 +220,17 @@ class CommandParserTest {
     @Test fun longIdeaWithQuestionWordIsNotAgenda() {
         assertNull(p("فكرة ايه رأيك نعمل مشروع قهوة صغير جنب الشغل الجديد بكرة"))
     }
+
+    // real outputs of the small model on recorded Egyptian speech
+    @Test fun misheardNotebookQuestion() {
+        val c = p("فاضل اف نوتة المسترية.") as Command.Ask
+        assertEquals(AskKind.NOTEBOOK, c.what); assertEquals(2L, c.notebookId)
+    }
+    @Test fun misheardBrief() { assertEquals(AskKind.BRIEF, (p("ملخص نها أدم.") as Command.Ask).what) }
+    @Test fun misheardAgenda() { assertEquals(AskKind.AGENDA, (p("عندي اي يوم الخميس.") as Command.Ask).what) }
+    @Test fun smallModelCreate() {
+        val c = p("اعمل نوتة اسمها المشتريات وضيف جواها لبن وعيش وقبنة.") as Command.CreateNotebook
+        assertEquals("المشتريات", c.title); assertEquals(3, c.items.size)
+    }
+    @Test fun noFalseNotebookMatch() { assertTrue(!Ar.close("مستشفي", "مشتريات")) }
 }

@@ -121,6 +121,11 @@ object Ar {
             if (pa.length < 2 || pb.length < 2) return false
             return pa == pb || (minOf(pa.length, pb.length) >= 4 && lev(pa, pb) <= 1)
         }
+        // misheard Arabic ("المسترية" for "المشتريات"): compare the consonant skeleton
+        if (!hasLatin(a) && a.length >= 5 && b.length >= 5) {
+            val pa = phon(a); val pb = phon(b)
+            if (minOf(pa.length, pb.length) >= 4 && lev(pa, pb) <= 1) return true
+        }
         if (a.length < 3 || b.length < 3) return false
         // "شغل" ~ "شغلي", "مهام" ~ "مهامي"
         if ((a.startsWith(b) || b.startsWith(a)) && kotlin.math.abs(a.length - b.length) <= 2) return true

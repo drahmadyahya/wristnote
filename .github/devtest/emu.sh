@@ -10,11 +10,15 @@ IMG="system-images;android-$API;$TARGET;x86_64"
 yes | $SM --install "emulator" "platform-tools" "$IMG" > $OUT/sdk_$TARGET.txt 2>&1
 echo "sdkmanager exit $?" >> $OUT/sdk_$TARGET.txt
 DEV=""; [ "$PROFILE" != "-" ] && DEV="-d $PROFILE"
-echo no | $AM create avd -n t -k "$IMG" $DEV --force > $OUT/avd_$TARGET.txt 2>&1
+export ANDROID_AVD_HOME=$HOME/.android/avd; mkdir -p $ANDROID_AVD_HOME
+echo no | $AM create avd -n t -k "$IMG" $DEV --force -p $ANDROID_AVD_HOME/t.avd > $OUT/avd_$TARGET.txt 2>&1
+ls -la $ANDROID_AVD_HOME >> $OUT/avd_$TARGET.txt 2>&1
 export PATH=$SDK/platform-tools:$PATH
 nohup $SDK/emulator/emulator -avd t -no-window -gpu swiftshader_indirect -no-boot-anim -no-snapshot \
   -no-audio -camera-back none -memory 3072 -accel on > $OUT/emulator_$TARGET.txt 2>&1 &
-adb wait-for-device
+sleep 20
+if ! pgrep -f "qemu-system" >/dev/null; then echo "EMULATOR DID NOT START" >> $OUT/emulator_$TARGET.txt; exit 1; fi
+timeout 900 adb wait-for-device || { echo "NO DEVICE" >> $OUT/emulator_$TARGET.txt; exit 1; }
 start=$(date +%s)
 until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
   sleep 10
