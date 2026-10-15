@@ -13,6 +13,10 @@ DEV=""; [ "$PROFILE" != "-" ] && DEV="-d $PROFILE"
 export ANDROID_AVD_HOME=$HOME/.android/avd; mkdir -p $ANDROID_AVD_HOME
 echo no | $AM create avd -n t -k "$IMG" $DEV --force -p $ANDROID_AVD_HOME/t.avd > $OUT/avd_$TARGET.txt 2>&1
 ls -la $ANDROID_AVD_HOME >> $OUT/avd_$TARGET.txt 2>&1
+# runners have little free disk: smaller data partition, more RAM-backed speed
+sed -i '/disk.dataPartition.size/d' $ANDROID_AVD_HOME/t.avd/config.ini
+echo "disk.dataPartition.size=3G" >> $ANDROID_AVD_HOME/t.avd/config.ini
+df -h / >> $OUT/avd_$TARGET.txt
 export PATH=$SDK/platform-tools:$PATH
 nohup $SDK/emulator/emulator -avd t -no-window -gpu swiftshader_indirect -no-boot-anim -no-snapshot \
   -no-audio -camera-back none -memory 3072 -accel on > $OUT/emulator_$TARGET.txt 2>&1 &
