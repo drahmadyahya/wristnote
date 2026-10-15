@@ -450,8 +450,23 @@ object CommandParser {
         "ظبطل" to "ظبطلي", "ضبطلي" to "ظبطلي", "اعمالي" to "اعملي",
     )
 
-    fun fixHeard(text: String): String = text.trim().split(Regex("\\s+")).joinToString(" ") { w ->
-        HEARD[Ar.token(w)] ?: w
+    private val HEARD_PHRASES = listOf(
+        Regex("(ال)?نه[اى]ر?\\s+[اأ]د[ه]?م(?=\\s|$)") to "النهارده",
+    )
+    private val DAY_ROOTS = listOf("سبت", "حد", "احد", "اتنين", "تلات", "ثلاثاء", "اربع", "خميس", "جمعه")
+
+    /** Fixes words the speech model commonly mishears; the result is also what the user sees. */
+    fun fixHeard(text: String): String {
+        var s = text.trim()
+        for ((re, to) in HEARD_PHRASES) s = s.replace(re, to)
+        return s.split(Regex("\\s+")).joinToString(" ") { w ->
+            val n = Ar.token(w)
+            HEARD[n] ?: run {
+                // "يوم الخميس" heard as one word: "وملخميس" / "يومالخميس"
+                val day = DAY_ROOTS.firstOrNull { n.endsWith(it) && n.length > it.length + 1 }
+                if (day != null && (n.startsWith("وم") || n.startsWith("يوم"))) "يوم ال$day" else w
+            }
+        }
     }
 
     fun parse(heard: String, notebooks: List<NotebookRef>, now: Long): Command? {

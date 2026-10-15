@@ -327,4 +327,11 @@ class CommandParserTest {
         val c = p("صحيني بكرة الساعة سبعة ونص") as Command.Alarm
         assertEquals("15/10 07:30", at(c.at))
     }
+    @Test fun heardMergedWeekday() {
+        val c = p("عندي آية وملخميس") as Command.Ask
+        assertEquals(AskKind.AGENDA, c.what)
+        assertEquals("15/10 00:00", at(c.dayStart))
+        assertEquals("ملخص النهارده", CommandParser.fixHeard("ملخص النهار أدهم"))
+        assertEquals("ملخص النهارده", CommandParser.fixHeard("ملخص نها أدم"))
+    }
 }

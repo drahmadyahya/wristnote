@@ -42,6 +42,7 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
                 WhisperEngine.transcribe(ModelManager.file(ctx, ModelManager.Model.FAST), File(note.audio), true, hints)
             } catch (e: Exception) { null }
         }
+        text = text?.let { CommandParser.fixHeard(it) }
         val took = ((System.currentTimeMillis() - started) / 1000).toInt()
         Log.i("Nerdly", "transcribed in ${took}s")
 
