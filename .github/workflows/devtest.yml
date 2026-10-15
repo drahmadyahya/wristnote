@@ -43,7 +43,7 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           mkdir -p devtest-out; echo done > devtest-out/status.txt; find devtest-out -type f -size 0 -delete; ls -la devtest-out
-          gh release create "devtest-phone-${{ github.run_number }}" devtest-out/* --prerelease \
+          gh release create "devtest-phone-${{ github.run_number }}-${{ github.run_attempt }}" devtest-out/* --prerelease \
             --title "Device test phone ${{ github.run_number }}" --notes "emulator results"
 
   wear:
@@ -76,7 +76,7 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           mkdir -p devtest-out; echo done > devtest-out/status.txt; find devtest-out -type f -size 0 -delete; ls -la devtest-out
-          gh release create "devtest-wear-${{ github.run_number }}" devtest-out/* --prerelease \
+          gh release create "devtest-wear-${{ github.run_number }}-${{ github.run_attempt }}" devtest-out/* --prerelease \
             --title "Device test watch ${{ github.run_number }}" --notes "emulator results"
 
   accuracy:
@@ -91,5 +91,5 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           mkdir -p devtest-out; echo done > devtest-out/status.txt; find devtest-out -type f -size 0 -delete
-          gh release create "devtest-accuracy-${{ github.run_number }}" devtest-out/* --prerelease \
+          gh release create "devtest-accuracy-${{ github.run_number }}-${{ github.run_attempt }}" devtest-out/* --prerelease \
             --title "Accuracy ${{ github.run_number }}" --notes "model comparison"
