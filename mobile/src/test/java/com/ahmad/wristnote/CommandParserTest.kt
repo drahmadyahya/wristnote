@@ -292,4 +292,39 @@ class CommandParserTest {
         val d = CommandParser.parse("اضيف في نوتة الشغل تحت عنوان المهامي", oneBook, now) as Command.CreateNotebook
         assertEquals("الشغل", d.title); assertEquals("المهامي", d.heading)
     }
+
+    // ── what the new speech model actually wrote for the test clips ──
+    @Test fun heardSahini() {
+        val c = p("سحيني بكرة الساعة سبعة ونص.") as Command.Alarm
+        assertEquals("15/10 07:30", at(c.at))
+    }
+    @Test fun heardKaman() {
+        val c = p("فكرني كمن ساعة أكلم أحمد.") as Command.Reminder
+        assertEquals("14/10 11:00", at(c.at)); assertEquals("أكلم أحمد", c.text)
+    }
+    @Test fun heardHeadingVowels() {
+        val c = p("ضيف في نوتة الشغل تحت عنوان المهمة نراجع العقد مع المحاضرين") as Command.AddToNote
+        assertEquals(10L, c.anchorId); assertEquals("نراجع العقد مع المحاضرين", c.text)
+        val d = p("ضيف في نوتة الشغل تحت عنوان المهم نراجع العقد") as Command.AddToNote
+        assertEquals(10L, d.anchorId)
+    }
+    @Test fun heardAbokra() {
+        val c = p("عندي آبكرة.") as Command.Ask
+        assertEquals(AskKind.AGENDA, c.what)
+    }
+    @Test fun heardTafkeerat() {
+        assertEquals(AskKind.REMINDERS, (p("ايه التفكيرات اللي عندي") as Command.Ask).what)
+    }
+    @Test fun heardDiacritics() {
+        val c = p("ضَبْطِلِيَ الْمُنَبِّهُ السَّاعَةَ سِتَّةَ الصُّبْحِ.") as Command.Alarm
+        assertEquals("15/10 06:00", at(c.at))
+    }
+    @Test fun heardIdeasStayIdeas() {
+        assertNull(p("المريض اللي في سرير خمسة محتاج أشعة على الركبة بكرة الصبح."))
+        assertNull(p("كسر في عظمة الفخذ محتاجة تثبيت داخلي بمسمار نخاعي"))
+    }
+    @Test fun alarmTomorrowIsMorning() {
+        val c = p("صحيني بكرة الساعة سبعة ونص") as Command.Alarm
+        assertEquals("15/10 07:30", at(c.at))
+    }
 }

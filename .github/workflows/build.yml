@@ -17,6 +17,9 @@ jobs:
       - name: Get whisper.cpp
         run: git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp mobile/src/main/cpp/whisper.cpp
 
+      - name: Get speech model
+        run: .github/fetch_speech_model.sh
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

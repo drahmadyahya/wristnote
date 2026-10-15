@@ -31,7 +31,7 @@ object ModelManager {
     fun isReady(ctx: Context, m: Model = selected(ctx)) = file(ctx, m).let { it.exists() && it.length() > m.minBytes }
 
     /** The model for the first pass: the fast one whenever it is there. */
-    fun usable(ctx: Context): Model? = if (isReady(ctx, Model.FAST)) Model.FAST else null
+    fun usable(ctx: Context): Model? = Model.FAST  // speech model now ships inside the app (SpeechEngine)
 
     /** Ideas get a second, more accurate pass in the background. */
     fun refineIdeas(ctx: Context) = false

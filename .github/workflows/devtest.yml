@@ -29,6 +29,7 @@ jobs:
           .github/devtest/make_audio.sh mobile/src/androidTest/assets/speech
           cp .github/devtest/phrases.txt mobile/src/androidTest/assets/speech/
       - run: git clone -q --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp mobile/src/main/cpp/whisper.cpp
+      - run: .github/fetch_speech_model.sh
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4

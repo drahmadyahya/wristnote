@@ -7,3 +7,4 @@ local.properties
 .cxx/
 */.cxx/
 mobile/src/main/cpp/whisper.cpp/
+mobile/src/main/assets/moonshine-ar/

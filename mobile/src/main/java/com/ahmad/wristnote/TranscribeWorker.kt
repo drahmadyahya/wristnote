@@ -31,29 +31,23 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
         val id = inputData.getLong(KEY_ID, -1L)
         val note = NoteStore.get(ctx, id) ?: return Result.success()
         if (note.text != null) return Result.success()
-        val model = ModelManager.usable(ctx)
-        if (model == null) {
-            Notifier.waitingForModel(ctx)
-            return Result.success()
-        }
         val hints = Notebooks.all(ctx).flatMap { nb -> listOf(nb.title) + nb.blocks.filter { it.heading }.map { it.text } }
         val started = System.currentTimeMillis()
-        fun run(m: ModelManager.Model) =
-            WhisperEngine.transcribe(ModelManager.file(ctx, m), File(note.audio), m == ModelManager.Model.FAST, hints)
-        var text = try { run(model) } catch (e: Exception) {
-            Log.e("Nerdly", "transcription failed", e); null
+        var text = try { SpeechEngine.transcribe(ctx, File(note.audio), hints) } catch (e: Throwable) {
+            Log.e("Nerdly", "speech model failed", e); null
         }
-        // went off the rails -> try the other model
-        val other = ModelManager.Model.values().firstOrNull { it != model && ModelManager.isReady(ctx, it) }
-        if ((text == null || WhisperEngine.looksBroken(text)) && other != null) {
-            text = try { run(other) } catch (e: Exception) { null }
+        // fallback: Whisper, only if its file is still on the phone from an older version
+        if (text == null && ModelManager.isReady(ctx, ModelManager.Model.FAST)) {
+            text = try {
+                WhisperEngine.transcribe(ModelManager.file(ctx, ModelManager.Model.FAST), File(note.audio), true, hints)
+            } catch (e: Exception) { null }
         }
         val took = ((System.currentTimeMillis() - started) / 1000).toInt()
-        Log.i("Nerdly", "transcribed in ${took}s with $model")
+        Log.i("Nerdly", "transcribed in ${took}s")
 
         // another run already finished this note: don't overwrite it
         if (NoteStore.get(ctx, id)?.text != null) return Result.success()
-        if (text == null || WhisperEngine.looksBroken(text)) {
+        if (text == null) {
             NoteStore.upsert(ctx, note.copy(failed = true, took = took))
             return Result.success()
         }
@@ -62,10 +56,6 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
             return Result.success()
         }
         process(ctx, note.copy(text = text, failed = false, took = took))
-        // commands are done; plain ideas get a slower, more accurate re-write
-        if (model == ModelManager.Model.FAST && ModelManager.refineIdeas(ctx) && NoteStore.get(ctx, id)?.kind == "idea") {
-            RefineWorker.enqueue(ctx, id)
-        }
         return Result.success()
     }
 

@@ -126,6 +126,11 @@ object Ar {
             val pa = phon(a); val pb = phon(b)
             if (minOf(pa.length, pb.length) >= 4 && lev(pa, pb) <= 1) return true
         }
+        // same consonants, different vowels ("مهمه"/"مهم" for "مهام")
+        if (!hasLatin(a) && !hasLatin(b) && a.length >= 3 && b.length >= 3) {
+            val pa = phon(a); val pb = phon(b)
+            if (pa.length >= 3 && pa == pb) return true
+        }
         if (a.length < 3 || b.length < 3) return false
         // "شغل" ~ "شغلي", "مهام" ~ "مهامي"
         if ((a.startsWith(b) || b.startsWith(a)) && kotlin.math.abs(a.length - b.length) <= 2) return true
@@ -209,7 +214,7 @@ object CommandParser {
 
     class When(val at: Long, val hasClock: Boolean)
 
-    private fun parseTime(t: Toks, now: Long): When? {
+    private fun parseTime(t: Toks, now: Long, wakeUp: Boolean = false): When? {
         val cal = Calendar.getInstance().apply { timeInMillis = now }
         var dayOffset: Int? = null
         var weekday: Int? = null
@@ -383,7 +388,7 @@ object CommandParser {
 
         val ambiguous = hour != null && period == null && hour!! in 1..12
         if (hasDay || relMinutes != null) {
-            if (ambiguous) hh = when (hour!!) { in 1..7 -> hour!! + 12; else -> hour!! }.let { if (minute < 0) it - 1 else it }
+            if (ambiguous) hh = when (hour!!) { in 3..11 -> if (wakeUp) hour!! else if (hour!! <= 7) hour!! + 12 else hour!!; in 1..7 -> hour!! + 12; else -> hour!! }.let { if (minute < 0) it - 1 else it }
             target.set(Calendar.HOUR_OF_DAY, hh); target.set(Calendar.MINUTE, m)
             if (weekday != null && target.timeInMillis <= now) target.add(Calendar.DAY_OF_YEAR, 7)
             return When(target.timeInMillis, hasClock)
@@ -437,7 +442,20 @@ object CommandParser {
     private val LEAD_FILLER = setOf("ان", "اني", "انه", "انك", "اننا", "ب", "بان", "ده", "دي", "اللي", "هو", "هي", "بتاع",
         "يا", "ممكن", "لو", "سمحت", "طيب", "بقولك", "عايز", "عاوز", "و")
 
-    fun parse(text: String, notebooks: List<NotebookRef>, now: Long): Command? {
+    /** Words the speech model commonly mishears, mapped to what was said. */
+    private val HEARD = mapOf(
+        "سحيني" to "صحيني", "سحيه" to "صحيني", "كمن" to "كمان", "كمانه" to "كمان",
+        "التفكيرات" to "التذكيرات", "تفكيراتي" to "تذكيراتي", "تفكيرات" to "تذكيرات",
+        "ابكره" to "ايه بكره", "ايفي" to "ايه في", "سجال" to "سجل",
+        "ظبطل" to "ظبطلي", "ضبطلي" to "ظبطلي", "اعمالي" to "اعملي",
+    )
+
+    fun fixHeard(text: String): String = text.trim().split(Regex("\\s+")).joinToString(" ") { w ->
+        HEARD[Ar.token(w)] ?: w
+    }
+
+    fun parse(heard: String, notebooks: List<NotebookRef>, now: Long): Command? {
+        val text = fixHeard(heard)
         val t = Toks(text)
         if (t.size == 0) return null
 
@@ -449,7 +467,7 @@ object CommandParser {
         val alarmIdx = (0 until t.size).firstOrNull { t[it] in ALARM_WORDS }
         if (alarmIdx != null) {
             val tt = Toks(text)
-            val w = parseTime(tt, now)
+            val w = parseTime(tt, now, wakeUp = true)
             if (w != null && w.hasClock) {
                 for (k in 0 until tt.size) if (tt[k] in ALARM_WORDS || (k <= alarmIdx + 1 && tt[k] in ALARM_VERBS)) tt.use(k)
                 return Command.Alarm(w.at, content(tt))

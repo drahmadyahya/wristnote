@@ -39,19 +39,7 @@ class DevicePipelineTest {
         shell("appops set $pkg SYSTEM_ALERT_WINDOW allow")
         localCalendar()
 
-        val model = ModelManager.Model.FAST
-        ModelManager.select(ctx, model)
-        ModelManager.startDownload(ctx, model)
-        val t0 = System.currentTimeMillis()
-        while (true) {
-            val p = ModelManager.poll(ctx, model)
-            if (p == 100) break
-            assertTrue("model download failed", p != -2)
-            assertTrue("model download timed out", System.currentTimeMillis() - t0 < 20 * 60_000)
-            Thread.sleep(2000)
-        }
-        report("MODEL ${model.file} ready in ${(System.currentTimeMillis() - t0) / 1000}s")
-
+        assertTrue("speech model missing from the APK", SpeechEngine.available(ctx))
         val phrases = testCtx.assets.open("speech/phrases.txt").bufferedReader().readLines()
             .filter { it.isNotBlank() }.map { it.split("|") }
         var crashes = 0
@@ -64,7 +52,7 @@ class DevicePipelineTest {
             try {
                 val start = System.currentTimeMillis()
                 val hints = Notebooks.all(ctx).flatMap { nb -> listOf(nb.title) + nb.blocks.filter { it.heading }.map { it.text } }
-                val text = WhisperEngine.transcribe(ModelManager.file(ctx, model), wav, true, hints)
+                val text = SpeechEngine.transcribe(ctx, wav, hints)
                 val secs = (System.currentTimeMillis() - start) / 1000.0
                 TranscribeWorker.process(ctx, Note(id, text, wav.absolutePath, took = secs.toInt()))
                 val n = NoteStore.get(ctx, id)!!
