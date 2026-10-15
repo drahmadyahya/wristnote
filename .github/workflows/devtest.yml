@@ -12,7 +12,7 @@ permissions:
 jobs:
   phone:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Enable KVM
@@ -33,18 +33,7 @@ jobs:
       - name: Build for x86_64 emulator
         run: gradle --no-daemon -Pabi=x86_64 :mobile:assembleRelease :mobile:assembleAndroidTest
       - name: Run on emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 33
-          target: google_apis
-          cores: 4
-          emulator-boot-timeout: 1500
-          arch: x86_64
-          ram-size: 4096M
-          disk-size: 6G
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
-          disable-animations: true
-          script: .github/devtest/phone.sh
+        run: .github/devtest/emu.sh 33 google_apis - .github/devtest/phone.sh
       - name: Publish results
         if: always()
         env: { GH_TOKEN: "${{ github.token }}" }
@@ -55,7 +44,7 @@ jobs:
 
   wear:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - name: Enable KVM
@@ -74,18 +63,7 @@ jobs:
           git clone -q --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp mobile/src/main/cpp/whisper.cpp
           gradle --no-daemon :wear:assembleRelease
       - name: Run on Wear OS emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 33
-          target: android-wear
-          arch: x86_64
-          profile: wearos_large_round
-          cores: 4
-          emulator-boot-timeout: 1500
-          ram-size: 2048M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -no-snapshot -camera-back none
-          disable-animations: true
-          script: .github/devtest/wear.sh
+        run: .github/devtest/emu.sh 33 android-wear wearos_large_round .github/devtest/wear.sh
       - name: Publish results
         if: always()
         env: { GH_TOKEN: "${{ github.token }}" }
