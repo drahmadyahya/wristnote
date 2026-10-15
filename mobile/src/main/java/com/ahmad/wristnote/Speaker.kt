@@ -54,6 +54,45 @@ object Speaker {
         }.start()
     }
 
+    /**
+     * Renders [text] to WAV bytes (for the watch to play), trying the default engine,
+     * then Google and Samsung. Null when no Arabic voice exists. Blocking.
+     */
+    fun synthBytes(ctx: Context, text: String): ByteArray? {
+        for (engine in listOf<String?>(null, "com.google.android.tts", "com.samsung.SMT")) {
+            val b = try { synthWith(ctx.applicationContext, engine, spoken(text)) } catch (e: Exception) { null }
+            if (b != null) return b
+        }
+        return null
+    }
+
+    private fun synthWith(ctx: Context, engine: String?, text: String): ByteArray? {
+        val ready = CountDownLatch(1)
+        var ok = false
+        val init = TextToSpeech.OnInitListener { ok = it == TextToSpeech.SUCCESS; ready.countDown() }
+        val tts = if (engine == null) TextToSpeech(ctx, init) else TextToSpeech(ctx, init, engine)
+        try {
+            if (!ready.await(6, TimeUnit.SECONDS) || !ok) return null
+            val lang = listOf(Locale("ar", "EG"), Locale("ar", "SA"), Locale("ar"))
+                .firstOrNull { tts.isLanguageAvailable(it) >= TextToSpeech.LANG_AVAILABLE } ?: return null
+            if (tts.setLanguage(lang) < TextToSpeech.LANG_AVAILABLE) return null
+            val out = java.io.File(ctx.cacheDir, "say_${System.nanoTime()}.wav")
+            val done = CountDownLatch(1)
+            var failed = false
+            tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(id: String?) {}
+                override fun onDone(id: String?) { done.countDown() }
+                @Deprecated("old api") override fun onError(id: String?) { failed = true; done.countDown() }
+                override fun onError(id: String?, code: Int) { failed = true; done.countDown() }
+            })
+            if (tts.synthesizeToFile(text, Bundle(), out, "clip") != TextToSpeech.SUCCESS) return null
+            val finished = done.await(20, TimeUnit.SECONDS)
+            val bytes = if (finished && !failed && out.length() > 2000) out.readBytes() else null
+            out.delete()
+            return bytes
+        } finally { tts.shutdown() }
+    }
+
     /** Makes screen text read naturally: no bullets, times said the Egyptian way. */
     fun spoken(text: String): String {
         var s = text.replace("•", "").replace("←", "،")

@@ -79,6 +79,33 @@ object Notebooks {
         return nb.copy(blocks = blocks).also { put(ctx, it) }
     }
 
+    /** Moves items (in their order) to the end of [headingId]'s section, or the end of the notebook. */
+    @Synchronized
+    fun moveItems(ctx: Context, fromId: Long, ids: Set<Long>, toId: Long, headingId: Long?): Int {
+        val all = all(ctx).toMutableList()
+        val fi = all.indexOfFirst { it.id == fromId }
+        if (fi < 0) return 0
+        val moving = all[fi].blocks.filter { it.id in ids && !it.heading }
+        if (moving.isEmpty()) return 0
+        all[fi] = all[fi].copy(blocks = all[fi].blocks.filter { it !in moving })
+        val ti = all.indexOfFirst { it.id == toId }
+        if (ti < 0) return 0
+        val blocks = all[ti].blocks.toMutableList()
+        val h = blocks.indexOfFirst { it.id == headingId }
+        var at = blocks.size
+        if (h >= 0) { at = h + 1; while (at < blocks.size && !blocks[at].heading) at++ }
+        blocks.addAll(at, moving)
+        all[ti] = all[ti].copy(blocks = blocks)
+        save(ctx, all)
+        return moving.size
+    }
+
+    @Synchronized
+    fun deleteItems(ctx: Context, notebookId: Long, ids: Set<Long>) {
+        val nb = get(ctx, notebookId) ?: return
+        put(ctx, nb.copy(blocks = nb.blocks.filter { it.heading || it.id !in ids }))
+    }
+
     private fun save(ctx: Context, list: List<Notebook>) {
         val arr = JSONArray()
         list.forEach { nb ->

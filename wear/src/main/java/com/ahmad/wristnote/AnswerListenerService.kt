@@ -18,10 +18,13 @@ import com.google.android.gms.wearable.WearableListenerService
 class AnswerListenerService : WearableListenerService() {
 
     override fun onDataChanged(events: DataEventBuffer) {
-        val items = events.filter {
-            it.type == DataEvent.TYPE_CHANGED && it.dataItem.uri.path?.startsWith(PATH) == true
-        }.map { it.dataItem.freeze() }
+        val changed = events.filter { it.type == DataEvent.TYPE_CHANGED }.map { it.dataItem.freeze() }
         val client = Wearable.getDataClient(this)
+        for (clip in changed.filter { it.uri.path?.startsWith("/nerdly/voice") == true }) {
+            try { playClip(clip); Tasks.await(client.deleteDataItems(clip.uri)) }
+            catch (e: Exception) { Log.e("Nerdly", "clip failed", e) }
+        }
+        val items = changed.filter { it.uri.path?.startsWith(PATH) == true }
         for (item in items) {
             try {
                 val map = DataMapItem.fromDataItem(item).dataMap
@@ -32,7 +35,7 @@ class AnswerListenerService : WearableListenerService() {
                 // stale (e.g. delivered after a long disconnect): skip old answers, keep briefs for a few hours
                 val maxAge = if (kind == "brief") 6 * 3_600_000L else 30 * 60_000L
                 val fresh = System.currentTimeMillis() - time < maxAge
-                if (fresh) show(title, body, kind, time)
+                if (fresh && kind != "say") show(title, body, kind, time)
                 Tasks.await(client.deleteDataItems(item.uri))
                 if (fresh && map.getBoolean("speak", false)) speak("$title. $body")
             } catch (e: Exception) {
@@ -43,12 +46,18 @@ class AnswerListenerService : WearableListenerService() {
 
     /** Reads the answer aloud; if this watch has no Arabic voice, ask the phone to read it. */
     private fun speak(text: String) {
-        if (Speaker.sayBlocking(this, text)) return
-        val now = System.currentTimeMillis()
-        val req = com.google.android.gms.wearable.PutDataMapRequest.create("/nerdly/ttsfail/$now").apply {
-            dataMap.putString("text", text); dataMap.putLong("time", now)
-        }.asPutDataRequest().setUrgent()
-        try { Tasks.await(Wearable.getDataClient(this).putDataItem(req)) } catch (_: Exception) {}
+        if (!Speaker.sayBlocking(this, text)) Speaker.askPhone(this, text)
+    }
+
+    /** A voice clip rendered by the phone. */
+    private fun playClip(item: com.google.android.gms.wearable.DataItem) {
+        val map = DataMapItem.fromDataItem(item).dataMap
+        if (System.currentTimeMillis() - map.getLong("time", 0L) > 2 * 60_000) return  // too late to be useful
+        val asset = map.getAsset("clip") ?: return
+        val f = java.io.File(cacheDir, "clip.wav")
+        Tasks.await(Wearable.getDataClient(this).getFdForAsset(asset)).inputStream.use { i -> f.outputStream().use { i.copyTo(it) } }
+        Speaker.playBlocking(this, f)
+        f.delete()
     }
 
     private fun show(title: String, body: String, kind: String, time: Long) {

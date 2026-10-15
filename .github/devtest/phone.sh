@@ -31,6 +31,15 @@ adb shell am start -W -n com.ahmad.wristnote/.MainActivity
 shot phone_1_ideas 8
 tap "النوت"; shot phone_2_notebooks
 tap "المشتريات"; shot phone_3_notebook
+longpress() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb pull /sdcard/ui.xml /tmp/ui.xml >/dev/null
+  read -r X Y < <(python3 .github/devtest/tap.py /tmp/ui.xml "$1") && adb shell input swipe "$X" "$Y" "$X" "$Y" 900
+}
+longpress "لبن"; shot phone_3b_select 3
+tap "عيش"; shot phone_3c_select_two 3
+tap "نقل"; shot phone_3d_move 3
+adb shell input keyevent KEYCODE_BACK; sleep 2
+adb shell input keyevent KEYCODE_BACK; sleep 2
 adb shell input keyevent KEYCODE_BACK; sleep 2
 tap "الأفكار"; sleep 2
 tap "فكرة جديدة"; shot phone_4_idea_sheet

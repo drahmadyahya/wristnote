@@ -19,8 +19,35 @@ shot watch_3_answer 3
 adb shell "am start -n com.ahmad.wristnote/.AnswerActivity --es kind brief --es title 'صباح الخير' --es body 'الخميس ١٥ أكتوبر${NL}النهارده عندك حاجتين:${NL}• ٧:٠٠ م  معاد الدكتور${NL}• ٩:٠٠ م  تذكير: أكلم أحمد${NL}فاضل ٥ في نوتك: المشتريات (٥)${NL}امبارح سجلت ٣ أفكار.'"
 shot watch_4_brief 3
 adb shell input swipe 225 380 225 100 300; shot watch_5_brief_scrolled
+# seed the watch's copy of the phone's notebooks (there is no phone on the emulator)
+python3 - <<'PY'
+import json, html
+snap = {"books": [
+  {"id": 1, "title": "المشتريات", "blocks": [
+    {"id": 2, "h": False, "t": "لبن", "d": True}, {"id": 3, "h": False, "t": "عيش", "d": False},
+    {"id": 4, "h": False, "t": "جبنة", "d": False}]},
+  {"id": 5, "title": "الشغل", "blocks": [
+    {"id": 6, "h": True, "t": "المهام", "d": False}, {"id": 7, "h": False, "t": "نراجع العقد", "d": False},
+    {"id": 8, "h": False, "t": "نكلم المحامي", "d": False}]}],
+  "reminders": [{"at": 0, "when": "النهارده الساعة ٩:٠٠ م", "text": "أكلم أحمد"}]}
+x = '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>\n<map>\n<string name="json">' + \
+    html.escape(json.dumps(snap, ensure_ascii=False)) + '</string>\n</map>\n'
+open("/tmp/snapshot.xml", "w", encoding="utf-8").write(x)
+PY
+adb shell am force-stop com.ahmad.wristnote
+adb push /tmp/snapshot.xml /data/local/tmp/snapshot.xml
+APPUID=$(adb shell stat -c %u /data/data/com.ahmad.wristnote | tr -d '\r')
+adb shell "mkdir -p /data/data/com.ahmad.wristnote/shared_prefs && cp /data/local/tmp/snapshot.xml /data/data/com.ahmad.wristnote/shared_prefs/snapshot.xml && chown $APPUID:$APPUID /data/data/com.ahmad.wristnote/shared_prefs /data/data/com.ahmad.wristnote/shared_prefs/snapshot.xml && chmod 660 /data/data/com.ahmad.wristnote/shared_prefs/snapshot.xml"
+wtap() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb pull /sdcard/ui.xml /tmp/ui.xml >/dev/null
+  read -r X Y < <(python3 .github/devtest/tap.py /tmp/ui.xml "$1") && adb shell input tap "$X" "$Y"
+}
 adb shell am start -n com.ahmad.wristnote/.TasksActivity
-shot watch_6a_tasks 4
+shot watch_6a_tasks 5
+wtap "المشتريات"; shot watch_6b_notebook 3
+wtap "عيش"; shot watch_6c_ticked 2
+adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell input swipe 225 380 225 100 300; shot watch_6d_tasks_scrolled 2
 adb shell am force-stop com.ahmad.wristnote
 adb shell input keyevent KEYCODE_HOME; sleep 2
 adb shell am broadcast -a com.google.android.wearable.app.DEBUG_SURFACE --es operation add-tile \

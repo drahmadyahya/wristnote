@@ -61,18 +61,30 @@ class VoiceListenerService : WearableListenerService() {
     /** The watch has no Arabic voice: read the answer here instead (once a hint, then just speak). */
     private fun speakForWatch(item: com.google.android.gms.wearable.DataItem) {
         val text = DataMapItem.fromDataItem(item).dataMap.getString("text") ?: return
-        val prefs = getSharedPreferences("voice", MODE_PRIVATE)
-        if (!prefs.getBoolean("hinted", false)) {
-            prefs.edit().putBoolean("hinted", true).apply()
-            Notifier.plain(this, "الساعة مفيهاش صوت عربي",
-                "هقرالك الإجابات من الموبايل. تقدر تغيّر ده من الإعدادات ← الرد بصوت.")
+        // best: render the Arabic voice here and let the watch play it on its own speaker
+        val clip = Speaker.synthBytes(this, text)
+        if (clip != null) {
+            val now = System.currentTimeMillis()
+            val req = com.google.android.gms.wearable.PutDataMapRequest.create("$VOICE/$now").apply {
+                dataMap.putAsset("clip", com.google.android.gms.wearable.Asset.createFromBytes(clip))
+                dataMap.putLong("time", now)
+            }.asPutDataRequest().setUrgent()
+            Tasks.await(Wearable.getDataClient(this).putDataItem(req), 10, java.util.concurrent.TimeUnit.SECONDS)
+            return
         }
-        Speaker.sayBlocking(this, text)
+        // no Arabic voice on the phone either: say so once
+        val prefs = getSharedPreferences("voice", MODE_PRIVATE)
+        if (!prefs.getBoolean("hinted_none", false)) {
+            prefs.edit().putBoolean("hinted_none", true).apply()
+            Notifier.plain(this, "مفيش صوت عربي",
+                "نزّل الصوت العربي من إعدادات الموبايل ← الإدارة العامة ← تحويل النص إلى كلام، عشان الساعة ترد بصوت.")
+        }
     }
 
     companion object {
         const val PREFIX = "/wristnote/voice"
         const val TOGGLE = "/nerdly/toggle"
         const val TTS_FAIL = "/nerdly/ttsfail"
+        const val VOICE = "/nerdly/voice"
     }
 }

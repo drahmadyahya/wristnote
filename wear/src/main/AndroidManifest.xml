@@ -68,6 +68,7 @@
                     android:host="*"
                     android:pathPrefix="/nerdly/answer"
                     android:scheme="wear" />
+                <data android:pathPrefix="/nerdly/voice" />
             </intent-filter>
         </service>
 

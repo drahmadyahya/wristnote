@@ -27,7 +27,7 @@ object WatchLink {
 
     /** Shows an answer on the watch; spoken there or here depending on the setting. Call off the main thread. */
     fun send(ctx: Context, title: String, body: String, kind: String) {
-        val speakable = kind == "answer"
+        val speakable = kind == "answer" || kind == "say"
         val v = voice(ctx)
         val now = System.currentTimeMillis()
         val req = PutDataMapRequest.create("$PATH/$now").apply {
@@ -43,6 +43,11 @@ object WatchLink {
             Log.w("Nerdly", "could not reach the watch", e)
         }
         if (speakable && v == Voice.PHONE) Speaker.sayBlocking(ctx, "$title. $body")
+    }
+
+    /** A short spoken confirmation on the watch ("تمام، هفكّرك…"), no extra notification. */
+    fun say(ctx: Context, text: String) {
+        if (voice(ctx) != Voice.OFF) send(ctx, text, "", "say")
     }
 
     private val sync = Executors.newSingleThreadExecutor()

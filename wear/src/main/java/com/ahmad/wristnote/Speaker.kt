@@ -48,10 +48,44 @@ object Speaker {
         return true
     }
 
-    fun sayAsync(ctx: Context, text: String, onNoArabic: () -> Unit = {}) {
+    fun sayAsync(ctx: Context, text: String, onNoArabic: () -> Unit = { askPhone(ctx, text) }) {
         Thread {
             try { if (!sayBlocking(ctx, text)) onNoArabic() } catch (e: Exception) { Log.e("Nerdly", "tts", e) }
         }.start()
+    }
+
+    /** No Arabic voice on the watch: the phone renders it and sends back a clip to play here. */
+    fun askPhone(ctx: Context, text: String) {
+        val now = System.currentTimeMillis()
+        val req = com.google.android.gms.wearable.PutDataMapRequest.create("/nerdly/ttsfail/$now").apply {
+            dataMap.putString("text", text); dataMap.putLong("time", now)
+        }.asPutDataRequest().setUrgent()
+        try {
+            com.google.android.gms.tasks.Tasks.await(
+                com.google.android.gms.wearable.Wearable.getDataClient(ctx).putDataItem(req), 5, TimeUnit.SECONDS)
+        } catch (_: Exception) {}
+    }
+
+    /** Plays a WAV clip on the watch speaker and waits for it to finish. */
+    fun playBlocking(ctx: Context, file: java.io.File) {
+        val done = CountDownLatch(1)
+        val am = ctx.getSystemService(AudioManager::class.java)
+        val attrs = android.media.AudioAttributes.Builder()
+            .setUsage(android.media.AudioAttributes.USAGE_ASSISTANT)
+            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build()
+        val focus = android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            .setAudioAttributes(attrs).build()
+        am.requestAudioFocus(focus)
+        val mp = android.media.MediaPlayer()
+        try {
+            mp.setAudioAttributes(attrs)
+            mp.setDataSource(file.absolutePath)
+            mp.setOnCompletionListener { done.countDown() }
+            mp.setOnErrorListener { _, _, _ -> done.countDown(); true }
+            mp.prepare(); mp.start()
+            done.await(60, TimeUnit.SECONDS)
+        } catch (e: Exception) { Log.e("Nerdly", "clip", e) }
+        finally { mp.release(); am.abandonAudioFocusRequest(focus) }
     }
 
     /** Makes screen text read naturally: no bullets, times said the Egyptian way. */
