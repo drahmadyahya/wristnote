@@ -42,12 +42,13 @@ object SettingsSheet {
 
         section(s, ui, "دقة الكلام")
         val sel = ModelManager.selected(activity)
-        for (m in ModelManager.Model.values()) {
+        for (m in ModelManager.Model.values().reversed()) {
             val ready = ModelManager.isReady(activity, m)
             val p = ModelManager.poll(activity, m)
             val (name, desc) = when (m) {
-                ModelManager.Model.ACCURATE -> "دقة عالية" to "أدق في العربي والعامية. بياخد ثواني أكتر شوية."
-                ModelManager.Model.FAST -> "سريع" to "أسرع، بس ممكن يغلط في الإملا أكتر."
+                ModelManager.Model.FAST -> "سريع" to "الأوامر والأفكار بتتكتب في ثواني."
+                ModelManager.Model.ACCURATE -> "سريع + تحسين الأفكار" to
+                    "الأوامر بتتنفّذ بنفس السرعة، والأفكار العادية بتتكتب تاني بدقة أعلى في الخلفية (حوالي دقيقة لكل فكرة)."
             }
             val status = when {
                 ready -> null

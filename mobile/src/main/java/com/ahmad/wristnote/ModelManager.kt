@@ -7,8 +7,9 @@ import java.io.File
 
 /**
  * Two speech models, downloaded once each on demand:
- *  - ACCURATE: large-v3-turbo, much better Arabic (default)
- *  - FAST: small, quicker but more spelling mistakes
+ *  - FAST: small. Every recording goes through it first (seconds).
+ *  - ACCURATE: large-v3-turbo. Too slow for commands on a phone (~1 min),
+ *    so when chosen it only re-writes plain ideas in the background.
  */
 object ModelManager {
     enum class Model(val file: String, val mb: Int, val minBytes: Long) {
@@ -20,8 +21,8 @@ object ModelManager {
     private const val PREFS = "model"
 
     fun selected(ctx: Context): Model =
-        runCatching { Model.valueOf(prefs(ctx).getString("selected", Model.ACCURATE.name)!!) }
-            .getOrDefault(Model.ACCURATE)
+        runCatching { Model.valueOf(prefs(ctx).getString("selected", Model.FAST.name)!!) }
+            .getOrDefault(Model.FAST)
 
     fun select(ctx: Context, m: Model) = prefs(ctx).edit().putString("selected", m.name).apply()
 
@@ -30,9 +31,11 @@ object ModelManager {
 
     fun isReady(ctx: Context, m: Model = selected(ctx)) = file(ctx, m).let { it.exists() && it.length() > m.minBytes }
 
-    /** Any usable model, preferring the selected one. */
-    fun usable(ctx: Context): Model? =
-        if (isReady(ctx)) selected(ctx) else Model.values().firstOrNull { isReady(ctx, it) }
+    /** The model for the first pass: the fast one whenever it is there. */
+    fun usable(ctx: Context): Model? = Model.values().reversed().firstOrNull { isReady(ctx, it) }
+
+    /** Ideas get a second, more accurate pass in the background. */
+    fun refineIdeas(ctx: Context) = selected(ctx) == Model.ACCURATE && isReady(ctx, Model.ACCURATE)
 
     fun startDownload(ctx: Context, m: Model = selected(ctx)) {
         if (isReady(ctx, m) || downloadId(ctx, m) != -1L) return

@@ -115,13 +115,13 @@ object Notifier {
     fun cancel(ctx: Context, id: Int) = NotificationManagerCompat.from(ctx).cancel(id)
 
     /** Quiet ongoing notification while a thought is being transcribed. */
-    fun working(ctx: Context): android.app.Notification {
+    fun working(ctx: Context, title: String = "بحوّل فكرتك لنص…"): android.app.Notification {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel("work", "التحويل لنص", NotificationManager.IMPORTANCE_LOW))
         return NotificationCompat.Builder(ctx, "work")
             .setSmallIcon(R.drawable.ic_stat_logo)
             .setColor(ctx.getColor(R.color.ic_bg))
-            .setContentTitle("بحوّل فكرتك لنص…")
+            .setContentTitle(title)
             .setOngoing(true)
             .setSilent(true)
             .setProgress(0, 0, true)

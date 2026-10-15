@@ -43,10 +43,10 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
         var text = try { run(model) } catch (e: Exception) {
             Log.e("Nerdly", "transcription failed", e); null
         }
-        // accurate model went off the rails -> redo with the fast one
-        if ((text == null || WhisperEngine.looksBroken(text)) && model != ModelManager.Model.FAST &&
-            ModelManager.isReady(ctx, ModelManager.Model.FAST)) {
-            text = try { run(ModelManager.Model.FAST) } catch (e: Exception) { null }
+        // went off the rails -> try the other model
+        val other = ModelManager.Model.values().firstOrNull { it != model && ModelManager.isReady(ctx, it) }
+        if ((text == null || WhisperEngine.looksBroken(text)) && other != null) {
+            text = try { run(other) } catch (e: Exception) { null }
         }
         val took = ((System.currentTimeMillis() - started) / 1000).toInt()
         Log.i("Nerdly", "transcribed in ${took}s with $model")
@@ -62,6 +62,10 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
             return Result.success()
         }
         process(ctx, note.copy(text = text, failed = false, took = took))
+        // commands are done; plain ideas get a slower, more accurate re-write
+        if (model == ModelManager.Model.FAST && ModelManager.refineIdeas(ctx) && NoteStore.get(ctx, id)?.kind == "idea") {
+            RefineWorker.enqueue(ctx, id)
+        }
         return Result.success()
     }
 

@@ -17,6 +17,7 @@ data class Note(
     val kind: String = "idea",
     val summary: String? = null,
     val took: Int = 0,
+    val refined: Boolean = false,
 )
 
 object NoteStore {
@@ -36,7 +37,7 @@ object NoteStore {
                 o.getLong("id"), if (o.isNull("text")) null else o.getString("text"),
                 o.getString("audio"), o.optBoolean("failed"),
                 o.optString("kind", "idea"), if (o.isNull("summary")) null else o.optString("summary", null),
-                o.optInt("took", 0),
+                o.optInt("took", 0), o.optBoolean("refined"),
             )
         }.sortedByDescending { it.id }
     }
@@ -59,7 +60,7 @@ object NoteStore {
         list.forEach {
             arr.put(JSONObject().put("id", it.id).put("text", it.text ?: JSONObject.NULL)
                 .put("audio", it.audio).put("failed", it.failed)
-                .put("kind", it.kind).put("summary", it.summary ?: JSONObject.NULL).put("took", it.took))
+                .put("kind", it.kind).put("summary", it.summary ?: JSONObject.NULL).put("took", it.took).put("refined", it.refined))
         }
         val tmp = File(ctx.filesDir, "notes.json.tmp")
         tmp.writeText(arr.toString())

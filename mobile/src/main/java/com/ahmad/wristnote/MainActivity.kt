@@ -121,7 +121,10 @@ class MainActivity : Activity() {
     private fun refresh(force: Boolean) {
         val model = ModelManager.usable(this)
         if (model != null && !hadModel) { hadModel = true; TranscribeWorker.enqueuePending(this) }
-        val sel = ModelManager.selected(this)
+        val fast = ModelManager.Model.FAST
+        // the fast model is always needed (every recording goes through it first)
+        if (model != null && !ModelManager.isReady(this, fast)) ModelManager.startDownload(this, fast)
+        val sel = if (model == null || !ModelManager.isReady(this, fast)) fast else ModelManager.selected(this)
         val progress = ModelManager.poll(this, sel)
         val missing = SettingsSheet.missing(this)
         val sig = "$tab|${NoteStore.version}|${Notebooks.version}|${model}|$progress|$missing"
@@ -163,9 +166,13 @@ class MainActivity : Activity() {
                 }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = ui.dp(16) })
             }
             banners.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = ui.dp(20) })
-        } else if (model != sel) {
-            // using the fast model while the accurate one is missing / downloading
-            val msg = if (p in 0..99) "بينزل ملف الدقة العالية… ${Fmt.num(p)}٪" else "الكلام هيبقى أدق لو نزّلت ملف الدقة العالية"
+        } else if (!ModelManager.isReady(this, sel)) {
+            val msg = when {
+                sel == ModelManager.Model.FAST && p in 0..99 -> "بينزل الملف السريع… ${Fmt.num(p)}٪"
+                sel == ModelManager.Model.FAST -> "نزّل الملف السريع عشان الأوامر تتنفّذ في ثواني"
+                p in 0..99 -> "بينزل ملف تحسين الأفكار… ${Fmt.num(p)}٪"
+                else -> "نزّل ملف تحسين الأفكار عشان الأفكار تتكتب أدق"
+            }
             banners.addView(strip(msg, if (p in 0..99) null else "نزّل") { ModelManager.startDownload(this, sel); refresh(true) })
         }
         if (missing > 0) {
