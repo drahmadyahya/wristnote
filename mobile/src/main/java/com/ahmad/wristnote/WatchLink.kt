@@ -15,26 +15,14 @@ object WatchLink {
     const val PATH = "/nerdly/answer"
     const val SNAPSHOT = "/nerdly/notebooks"
 
-    /** Where spoken replies come from. */
-    enum class Voice { WATCH, PHONE, OFF }
-
-    fun voice(ctx: Context): Voice = runCatching {
-        Voice.valueOf(ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).getString("v", Voice.WATCH.name)!!)
-    }.getOrDefault(Voice.WATCH)
-
-    fun setVoice(ctx: Context, v: Voice) =
-        ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).edit().putString("v", v.name).apply()
-
-    /** Shows an answer on the watch; spoken there or here depending on the setting. Call off the main thread. */
+    /** Shows an answer on the watch (text only, no voice). Call off the main thread. */
     fun send(ctx: Context, title: String, body: String, kind: String) {
-        val speakable = kind == "answer" || kind == "say"
-        val v = voice(ctx)
         val now = System.currentTimeMillis()
         val req = PutDataMapRequest.create("$PATH/$now").apply {
             dataMap.putString("title", title)
             dataMap.putString("body", body)
             dataMap.putString("kind", kind)
-            dataMap.putBoolean("speak", speakable && v == Voice.WATCH)
+            dataMap.putBoolean("speak", false)
             dataMap.putLong("time", now)
         }.asPutDataRequest().setUrgent()
         try {
@@ -42,12 +30,6 @@ object WatchLink {
         } catch (e: Exception) {
             Log.w("Nerdly", "could not reach the watch", e)
         }
-        if (speakable && v == Voice.PHONE) Speaker.sayBlocking(ctx, "$title. $body")
-    }
-
-    /** A short spoken confirmation on the watch ("تمام، هفكّرك…"), no extra notification. */
-    fun say(ctx: Context, text: String) {
-        if (voice(ctx) != Voice.OFF) send(ctx, text, "", "say")
     }
 
     private val sync = Executors.newSingleThreadExecutor()

@@ -1,0 +1,41 @@
+name: Speech model benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/asr/**", ".github/workflows/asr.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL || true
+      - name: Transcribe with every model
+        run: bash .github/asr/bench.sh
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.10.2" }
+      - name: Parse transcripts as commands
+        env:
+          BENCH_TSV: ${{ github.workspace }}/out/transcripts.tsv
+          BENCH_REF: ${{ github.workspace }}/.github/asr/phrases.txt
+          BENCH_OUT: ${{ github.workspace }}/out/commands.tsv
+        run: |
+          git clone -q --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp mobile/src/main/cpp/whisper.cpp
+          gradle --no-daemon :mobile:testReleaseUnitTest --tests '*BenchParseTest' --rerun
+      - name: Score
+        run: python .github/asr/score.py out/transcripts.tsv .github/asr/phrases.txt out/commands.tsv out/summary.md
+      - name: Publish results
+        if: always()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          mkdir -p out; echo done > out/status.txt; find out -type f -size 0 -delete
+          gh release create "asr-bench-${{ github.run_number }}" out/* --prerelease --title "ASR bench ${{ github.run_number }}" --notes "speech model comparison"

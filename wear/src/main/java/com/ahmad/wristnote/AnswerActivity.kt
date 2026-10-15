@@ -68,18 +68,6 @@ class AnswerActivity : Activity() {
             }
             setOnClickListener { finish() }
         }, LinearLayout.LayoutParams((w * 0.45f).toInt(), -2).apply { topMargin = (w * 0.06f).toInt() })
-        col.addView(TextView(this).apply {
-            text = "اسمعها"
-            setTextColor(getColor(R.color.amber))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            typeface = medium
-            gravity = Gravity.CENTER
-            setPadding(0, (w * 0.03f).toInt(), 0, (w * 0.03f).toInt())
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(Color.TRANSPARENT); setStroke(3, getColor(R.color.amber)); cornerRadius = w * 0.08f
-            }
-            setOnClickListener { Speaker.sayAsync(this@AnswerActivity, "$title. $body") }
-        }, LinearLayout.LayoutParams((w * 0.45f).toInt(), -2).apply { topMargin = (w * 0.03f).toInt() })
 
         val scroll = ScrollView(this).apply {
             setBackgroundColor(Color.BLACK)

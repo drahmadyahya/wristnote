@@ -21,7 +21,8 @@ class AnswerListenerService : WearableListenerService() {
         val changed = events.filter { it.type == DataEvent.TYPE_CHANGED }.map { it.dataItem.freeze() }
         val client = Wearable.getDataClient(this)
         for (clip in changed.filter { it.uri.path?.startsWith("/nerdly/voice") == true }) {
-            try { playClip(clip); Tasks.await(client.deleteDataItems(clip.uri)) }
+            // voice was removed: just clear clips left by older phone versions
+            try { Tasks.await(client.deleteDataItems(clip.uri)) }
             catch (e: Exception) { Log.e("Nerdly", "clip failed", e) }
         }
         val items = changed.filter { it.uri.path?.startsWith(PATH) == true }
@@ -37,27 +38,10 @@ class AnswerListenerService : WearableListenerService() {
                 val fresh = System.currentTimeMillis() - time < maxAge
                 if (fresh && kind != "say") show(title, body, kind, time)
                 Tasks.await(client.deleteDataItems(item.uri))
-                if (fresh && map.getBoolean("speak", false)) speak("$title. $body")
             } catch (e: Exception) {
                 Log.e("Nerdly", "answer failed", e)
             }
         }
-    }
-
-    /** Reads the answer aloud; if this watch has no Arabic voice, ask the phone to read it. */
-    private fun speak(text: String) {
-        if (!Speaker.sayBlocking(this, text)) Speaker.askPhone(this, text)
-    }
-
-    /** A voice clip rendered by the phone. */
-    private fun playClip(item: com.google.android.gms.wearable.DataItem) {
-        val map = DataMapItem.fromDataItem(item).dataMap
-        if (System.currentTimeMillis() - map.getLong("time", 0L) > 2 * 60_000) return  // too late to be useful
-        val asset = map.getAsset("clip") ?: return
-        val f = java.io.File(cacheDir, "clip.wav")
-        Tasks.await(Wearable.getDataClient(this).getFdForAsset(asset)).inputStream.use { i -> f.outputStream().use { i.copyTo(it) } }
-        Speaker.playBlocking(this, f)
-        f.delete()
     }
 
     private fun show(title: String, body: String, kind: String, time: Long) {

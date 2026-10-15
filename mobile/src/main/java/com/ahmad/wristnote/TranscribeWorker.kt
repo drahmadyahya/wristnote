@@ -90,8 +90,6 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
             val n = note.copy(kind = r.kind, summary = r.summary)
             NoteStore.upsert(ctx, n)
             Notifier.commandDone(ctx, n, r.ok)
-            // answers are already spoken; confirm the other commands out loud too
-            if (r.kind != "answer" && r.kind != "idea" && r.ok) WatchLink.say(ctx, "تمام. " + r.summary)
         }
 
         fun enqueue(ctx: Context, id: Long) {

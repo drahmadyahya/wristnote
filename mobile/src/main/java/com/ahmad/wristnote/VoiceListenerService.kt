@@ -20,7 +20,7 @@ class VoiceListenerService : WearableListenerService() {
             try {
                 when {
                     path.startsWith(TOGGLE) -> toggle(item)
-                    path.startsWith(TTS_FAIL) -> speakForWatch(item)
+                    path.startsWith(TTS_FAIL) -> Unit  // voice removed: just clear old requests
                     else -> continue
                 }
                 Tasks.await(client.deleteDataItems(item.uri))
@@ -58,28 +58,6 @@ class VoiceListenerService : WearableListenerService() {
         Notebooks.put(this, nb.copy(blocks = nb.blocks.map { if (it.id == id) it.copy(done = done) else it }))
     }
 
-    /** The watch has no Arabic voice: read the answer here instead (once a hint, then just speak). */
-    private fun speakForWatch(item: com.google.android.gms.wearable.DataItem) {
-        val text = DataMapItem.fromDataItem(item).dataMap.getString("text") ?: return
-        // best: render the Arabic voice here and let the watch play it on its own speaker
-        val clip = Speaker.synthBytes(this, text)
-        if (clip != null) {
-            val now = System.currentTimeMillis()
-            val req = com.google.android.gms.wearable.PutDataMapRequest.create("$VOICE/$now").apply {
-                dataMap.putAsset("clip", com.google.android.gms.wearable.Asset.createFromBytes(clip))
-                dataMap.putLong("time", now)
-            }.asPutDataRequest().setUrgent()
-            Tasks.await(Wearable.getDataClient(this).putDataItem(req), 10, java.util.concurrent.TimeUnit.SECONDS)
-            return
-        }
-        // no Arabic voice on the phone either: say so once
-        val prefs = getSharedPreferences("voice", MODE_PRIVATE)
-        if (!prefs.getBoolean("hinted_none", false)) {
-            prefs.edit().putBoolean("hinted_none", true).apply()
-            Notifier.plain(this, "مفيش صوت عربي",
-                "نزّل الصوت العربي من إعدادات الموبايل ← الإدارة العامة ← تحويل النص إلى كلام، عشان الساعة ترد بصوت.")
-        }
-    }
 
     companion object {
         const val PREFIX = "/wristnote/voice"
