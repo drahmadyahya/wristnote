@@ -13,8 +13,8 @@ android {
         applicationId = "com.ahmad.wristnote"
         minSdk = 30
         targetSdk = 35
-        versionCode = 12
-        versionName = "3.1"
+        versionCode = 13
+        versionName = "3.2"
     }
 
     signingConfigs {

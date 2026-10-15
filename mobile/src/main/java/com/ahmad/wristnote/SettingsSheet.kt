@@ -62,6 +62,25 @@ object SettingsSheet {
             })
         }
 
+        section(s, ui, "الرد بصوت")
+        val voice = WatchLink.voice(activity)
+        listOf(
+            Triple(WatchLink.Voice.WATCH, "من الساعة", "الساعة تقرالك الإجابة بصوت أول ما توصل."),
+            Triple(WatchLink.Voice.PHONE, "من الموبايل", "الموبايل يقرا الإجابة (لو الساعة مفيهاش صوت عربي)."),
+            Triple(WatchLink.Voice.OFF, "من غير صوت", "الإجابة تظهر مكتوبة بس."),
+        ).forEach { (v, name, desc) ->
+            s.body.addView(choice(activity, ui, name, desc, null, v == voice) {
+                WatchLink.setVoice(activity, v); s.dialog.dismiss(); show(activity, ui)
+            })
+        }
+        s.body.addView(ui.pillButton("جرّب الصوت على الموبايل", filled = false) {
+            Speaker.sayAsync(activity, "أهلًا يا دكتور أحمد. عندك بكرة حاجتين: ٧:٠٠ م معاد الدكتور.") {
+                activity.runOnUiThread {
+                    android.widget.Toast.makeText(activity, "مفيش صوت عربي على الموبايل. نزّله من إعدادات تحويل النص لكلام.", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }, LinearLayout.LayoutParams(-1, -2).apply { setMargins(ui.dp(16), ui.dp(4), ui.dp(16), ui.dp(8)) })
+
         section(s, ui, "ملخص الصبح")
         val on = Brief.enabled(activity)
         s.body.addView(choice(activity, ui, "ابعتلي ملخص كل يوم",

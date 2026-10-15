@@ -55,6 +55,8 @@
                     android:host="*"
                     android:pathPrefix="/wristnote/voice"
                     android:scheme="wear" />
+                <data android:pathPrefix="/nerdly/toggle" />
+                <data android:pathPrefix="/nerdly/ttsfail" />
             </intent-filter>
         </service>
 

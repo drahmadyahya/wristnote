@@ -60,7 +60,7 @@ class MainActivity : Activity() {
     }
 
     override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); out.putInt("tab", tab) }
-    override fun onResume() { super.onResume(); refresh(true); handler.post(refresher) }
+    override fun onResume() { super.onResume(); refresh(true); handler.post(refresher); WatchLink.syncSoon(this) }
     override fun onPause() { super.onPause(); handler.removeCallbacks(refresher) }
 
     private fun build() {

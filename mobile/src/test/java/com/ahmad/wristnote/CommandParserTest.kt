@@ -258,4 +258,9 @@ class CommandParserTest {
         val c = p("احفظ معاد الدكتور يوم الخنيس الساعة ٧") as Command.Event
         assertEquals("15/10 19:00", at(c.at))
     }
+
+    @Test fun spokenTimes() {
+        assertEquals("الخميس: الساعة ٧ مساءً معاد الدكتور", Speaker.spoken("الخميس:\n• ٧:٠٠ م  معاد الدكتور").replace("، ", " ").replace(":  ", ": ").replace(Regex("\\s+"), " "))
+        assertTrue(Speaker.spoken("• ٥:٣٠ ص اصحى").contains("الساعة ٥ ونص صباحًا"))
+    }
 }

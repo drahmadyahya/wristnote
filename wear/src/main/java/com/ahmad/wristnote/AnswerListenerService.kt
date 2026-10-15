@@ -31,12 +31,24 @@ class AnswerListenerService : WearableListenerService() {
                 val time = map.getLong("time", System.currentTimeMillis())
                 // stale (e.g. delivered after a long disconnect): skip old answers, keep briefs for a few hours
                 val maxAge = if (kind == "brief") 6 * 3_600_000L else 30 * 60_000L
-                if (System.currentTimeMillis() - time < maxAge) show(title, body, kind, time)
+                val fresh = System.currentTimeMillis() - time < maxAge
+                if (fresh) show(title, body, kind, time)
                 Tasks.await(client.deleteDataItems(item.uri))
+                if (fresh && map.getBoolean("speak", false)) speak("$title. $body")
             } catch (e: Exception) {
                 Log.e("Nerdly", "answer failed", e)
             }
         }
+    }
+
+    /** Reads the answer aloud; if this watch has no Arabic voice, ask the phone to read it. */
+    private fun speak(text: String) {
+        if (Speaker.sayBlocking(this, text)) return
+        val now = System.currentTimeMillis()
+        val req = com.google.android.gms.wearable.PutDataMapRequest.create("/nerdly/ttsfail/$now").apply {
+            dataMap.putString("text", text); dataMap.putLong("time", now)
+        }.asPutDataRequest().setUrgent()
+        try { Tasks.await(Wearable.getDataClient(this).putDataItem(req)) } catch (_: Exception) {}
     }
 
     private fun show(title: String, body: String, kind: String, time: Long) {

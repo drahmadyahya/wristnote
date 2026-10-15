@@ -90,5 +90,6 @@ object Notebooks {
         tmp.writeText(arr.toString())
         tmp.renameTo(file(ctx))
         version++
+        WatchLink.syncSoon(ctx)
     }
 }

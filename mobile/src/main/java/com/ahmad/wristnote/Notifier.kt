@@ -128,6 +128,11 @@ object Notifier {
             .build()
     }
 
+    fun plain(ctx: Context, title: String, body: String) {
+        channels(ctx)
+        notify(ctx, title.hashCode(), base(ctx, NOTES, title, body))
+    }
+
     fun brief(ctx: Context, title: String, body: String) {
         channels(ctx)
         notify(ctx, BRIEF_ID, base(ctx, NOTES, title, body).setLocalOnly(true))

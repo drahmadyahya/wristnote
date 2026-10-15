@@ -14,9 +14,19 @@ class VoiceListenerService : WearableListenerService() {
 
     override fun onDataChanged(events: DataEventBuffer) {
         val client = Wearable.getDataClient(this)
-        val items = events.filter {
-            it.type == DataEvent.TYPE_CHANGED && it.dataItem.uri.path?.startsWith(PREFIX) == true
-        }.map { it.dataItem.freeze() }
+        val changed = events.filter { it.type == DataEvent.TYPE_CHANGED }.map { it.dataItem.freeze() }
+        for (item in changed) {
+            val path = item.uri.path ?: continue
+            try {
+                when {
+                    path.startsWith(TOGGLE) -> toggle(item)
+                    path.startsWith(TTS_FAIL) -> speakForWatch(item)
+                    else -> continue
+                }
+                Tasks.await(client.deleteDataItems(item.uri))
+            } catch (e: Exception) { Log.e("Nerdly", "watch request failed", e) }
+        }
+        val items = changed.filter { it.uri.path?.startsWith(PREFIX) == true }
 
         for (item in items) {
             try {
@@ -40,5 +50,29 @@ class VoiceListenerService : WearableListenerService() {
         }
     }
 
-    companion object { const val PREFIX = "/wristnote/voice" }
+    /** Ticked/unticked on the watch. */
+    private fun toggle(item: com.google.android.gms.wearable.DataItem) {
+        val m = DataMapItem.fromDataItem(item).dataMap
+        val nb = Notebooks.get(this, m.getLong("nb")) ?: return
+        val id = m.getLong("block"); val done = m.getBoolean("done")
+        Notebooks.put(this, nb.copy(blocks = nb.blocks.map { if (it.id == id) it.copy(done = done) else it }))
+    }
+
+    /** The watch has no Arabic voice: read the answer here instead (once a hint, then just speak). */
+    private fun speakForWatch(item: com.google.android.gms.wearable.DataItem) {
+        val text = DataMapItem.fromDataItem(item).dataMap.getString("text") ?: return
+        val prefs = getSharedPreferences("voice", MODE_PRIVATE)
+        if (!prefs.getBoolean("hinted", false)) {
+            prefs.edit().putBoolean("hinted", true).apply()
+            Notifier.plain(this, "الساعة مفيهاش صوت عربي",
+                "هقرالك الإجابات من الموبايل. تقدر تغيّر ده من الإعدادات ← الرد بصوت.")
+        }
+        Speaker.sayBlocking(this, text)
+    }
+
+    companion object {
+        const val PREFIX = "/wristnote/voice"
+        const val TOGGLE = "/nerdly/toggle"
+        const val TTS_FAIL = "/nerdly/ttsfail"
+    }
 }

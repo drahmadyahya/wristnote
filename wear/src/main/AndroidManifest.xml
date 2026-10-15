@@ -33,6 +33,24 @@
             </intent-filter>
         </activity>
 
+        <!-- second launcher icon: tasks and reminders from the phone -->
+        <activity
+            android:name=".TasksActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_tasks"
+            android:label="@string/tasks_name"
+            android:taskAffinity="com.ahmad.wristnote.tasks">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".WatchNotebookActivity"
+            android:exported="false"
+            android:taskAffinity="com.ahmad.wristnote.tasks" />
+
         <activity
             android:name=".AnswerActivity"
             android:exported="false"

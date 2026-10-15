@@ -214,6 +214,7 @@ object Reminders {
     private fun store(ctx: Context, list: List<Pair<Long, String>>) {
         val a = JSONArray(); list.forEach { a.put(JSONObject().put("at", it.first).put("text", it.second)) }
         file(ctx).writeText(a.toString())
+        WatchLink.syncSoon(ctx)
     }
 
     /** Pending reminders, soonest first. */

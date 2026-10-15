@@ -58,7 +58,9 @@ class RecordTileService : TileService() {
             .addContent(LayoutElementBuilders.Spacer.Builder().setHeight(dp(10f)).build())
             .addContent(button)
             .addContent(LayoutElementBuilders.Spacer.Builder().setHeight(dp(10f)).build())
-            .addContent(text("سجّل فكرة أو اسأل", 14f, WHITE))
+            .addContent(text("سجّل فكرة أو اسأل", 13f, WHITE))
+            .addContent(LayoutElementBuilders.Spacer.Builder().setHeight(dp(8f)).build())
+            .addContent(tasksChip())
             .build()
 
         val root = LayoutElementBuilders.Box.Builder()
@@ -88,6 +90,34 @@ class RecordTileService : TileService() {
                     ).build()
             ).build()
     )
+
+    /** Small "مهامي" chip that opens the tasks screen. */
+    private fun tasksChip(): LayoutElementBuilders.Box {
+        val open = ActionBuilders.LaunchAction.Builder()
+            .setAndroidActivity(
+                ActionBuilders.AndroidActivity.Builder()
+                    .setPackageName(packageName)
+                    .setClassName(TasksActivity::class.java.name)
+                    .build()
+            ).build()
+        return LayoutElementBuilders.Box.Builder()
+            .setWidth(dp(96f)).setHeight(dp(32f))
+            .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
+            .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+            .setModifiers(
+                ModifiersBuilders.Modifiers.Builder()
+                    .setBackground(
+                        ModifiersBuilders.Background.Builder()
+                            .setColor(argb(0xFF3A2F12.toInt()))
+                            .setCorner(ModifiersBuilders.Corner.Builder().setRadius(dp(16f)).build())
+                            .build()
+                    )
+                    .setClickable(ModifiersBuilders.Clickable.Builder().setId("tasks").setOnClick(open).build())
+                    .build()
+            )
+            .addContent(text("مهامي", 13f, AMBER))
+            .build()
+    }
 
     private fun text(s: String, size: Float, color: Int) = LayoutElementBuilders.Text.Builder()
         .setText(s)
