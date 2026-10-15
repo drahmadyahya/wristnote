@@ -28,10 +28,13 @@ object WhisperEngine {
         // performance cores only (S24 Ultra: 1 X4 + 5 A720); the efficiency cores slow everyone down
         val threads = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(2, 6)
         val seconds = samples.size / 16000.0
-        // full audio window: trimming it makes large-v3-turbo produce garbage
+        // Measured on recorded Egyptian speech: the small model keeps the same text with a
+        // 768 window (~15 s of audio) and runs ~2x faster; 512 starts making mistakes.
+        // large-v3-turbo produces garbage with any trimmed window, so it always gets the full one.
+        val audioCtx = if (fast) ((seconds * 50).toInt() + 128).coerceIn(768, 1500) else 0
         val maxTokens = (48 + seconds * 8).toInt().coerceAtMost(224)
         val raw = String(
-            nativeTranscribe(ctx, samples, threads, prompt(hints).toByteArray(Charsets.UTF_8), 0, maxTokens),
+            nativeTranscribe(ctx, samples, threads, prompt(hints).toByteArray(Charsets.UTF_8), audioCtx, maxTokens),
             Charsets.UTF_8
         )
         return clean(raw)

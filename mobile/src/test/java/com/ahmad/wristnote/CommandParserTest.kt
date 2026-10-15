@@ -233,4 +233,16 @@ class CommandParserTest {
         assertEquals("المشتريات", c.title); assertEquals(3, c.items.size)
     }
     @Test fun noFalseNotebookMatch() { assertTrue(!Ar.close("مستشفي", "مشتريات")) }
+
+    @Test fun smallModelWindowedCreate() {
+        val c = p("اعمل نوت تسميها المشتريات وضيف جواها لبن وعيش وقبنة.") as Command.CreateNotebook
+        assertEquals("المشتريات", c.title)
+    }
+    @Test fun agendaWithoutYaa() { assertEquals(AskKind.AGENDA, (p("عند اي يوم الخميس.") as Command.Ask).what) }
+
+    // heard on the emulator test
+    @Test fun agendaMisheardThursday() {
+        val c = p("عند اي يوم الخمس") as Command.Ask
+        assertEquals(AskKind.AGENDA, c.what); assertEquals("15/10 00:00", day(c.dayStart))
+    }
 }

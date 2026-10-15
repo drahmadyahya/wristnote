@@ -27,23 +27,23 @@ tap() {
 }
 adb shell am force-stop com.ahmad.wristnote
 adb shell cmd uimode night yes
-adb shell am start -n com.ahmad.wristnote/.MainActivity
-shot phone_1_ideas 4
-adb shell input swipe 540 1800 540 700 400; shot phone_2_ideas_scrolled
-tap "النوت"; shot phone_3_notebooks
-tap "المشتريات"; shot phone_4_notebook
-adb shell input keyevent KEYCODE_BACK
-tap "الأفكار"; sleep 1
-tap "فاضل"; shot phone_5_answer_sheet
-adb shell input keyevent KEYCODE_BACK; sleep 1
-tap "الإعدادات"; shot phone_6_settings
-adb shell input swipe 540 1900 540 600 400; shot phone_7_settings_more
+adb shell am start -W -n com.ahmad.wristnote/.MainActivity
+shot phone_1_ideas 8
+tap "النوت"; shot phone_2_notebooks
+tap "المشتريات"; shot phone_3_notebook
+adb shell input keyevent KEYCODE_BACK; sleep 2
+tap "الأفكار"; sleep 2
+tap "فكرة جديدة"; shot phone_4_idea_sheet
+adb shell input keyevent KEYCODE_BACK; sleep 2
+tap "ملخص"; shot phone_5_answer_sheet
+adb shell input keyevent KEYCODE_BACK; sleep 2
+adb shell input swipe 540 1900 540 700 400; shot phone_6_ideas_scrolled
+tap "الإعدادات"; shot phone_7_settings
+adb shell input swipe 540 1900 540 600 400; shot phone_8_settings_more
 adb shell input keyevent KEYCODE_BACK
 adb shell cmd uimode night no
 adb shell am force-stop com.ahmad.wristnote
-adb shell am start -n com.ahmad.wristnote/.MainActivity
-shot phone_8_light 4
-adb shell cmd statusbar expand-notifications; shot phone_9_notifications
-adb shell cmd statusbar collapse
+adb shell am start -W -n com.ahmad.wristnote/.MainActivity
+shot phone_9_light 8
 adb logcat -d -s Nerdly AndroidRuntime:E > $OUT/logcat_ui.txt
 exit 0

@@ -189,6 +189,10 @@ object CommandParser {
         "الثلاثاء" to Calendar.TUESDAY, "التلاتاء" to Calendar.TUESDAY, "الثلاث" to Calendar.TUESDAY,
         "الاربع" to Calendar.WEDNESDAY, "الاربعاء" to Calendar.WEDNESDAY, "الخميس" to Calendar.THURSDAY,
         "الجمعه" to Calendar.FRIDAY,
+        // as Whisper often writes them
+        "الخمس" to Calendar.THURSDAY, "الخميسي" to Calendar.THURSDAY, "التلاته" to Calendar.TUESDAY,
+        "الاتنينن" to Calendar.MONDAY, "الاربعا" to Calendar.WEDNESDAY, "الجمعا" to Calendar.FRIDAY,
+        "السبط" to Calendar.SATURDAY, "الحاد" to Calendar.SUNDAY,
     )
     private val CLOCK_WORD = setOf("الساعه", "ساعه")
     private val HOUR_UNIT = setOf("ساعه", "ساعات", "ساعتين")
@@ -540,7 +544,7 @@ object CommandParser {
     // ───────────── questions ─────────────
     private val QWORDS = setOf("ايه", "ايش", "اي", "شو", "ماذا", "امتي", "امتى", "كام", "مين", "فين", "هل", "ايه؟")
     private val ASK_VERBS = setOf("قولي", "قوللي", "قلي", "وريني", "ورينى", "اقرالي", "اقرالى", "اقرا", "اعرضلي", "فاضل", "فاضلي", "اسمعني")
-    private val AGENDA_WORDS = setOf("عندي", "ورايا", "وراي", "مواعيد", "مواعيدي", "المواعيد", "جدول", "جدولي", "الجدول",
+    private val AGENDA_WORDS = setOf("عندي", "عند", "ورايا", "وراي", "مواعيد", "مواعيدي", "المواعيد", "جدول", "جدولي", "الجدول",
         "اجندتي", "الاجنده", "برنامجي", "مشغول", "فاضي", "مشاويري", "مشاوير")
     private val REMINDER_WORDS = setOf("تذكيراتي", "التذكيرات", "تذكيرات", "هتفكرني", "فكرتني", "المنبهات", "منبهاتي")
     private val IDEA_WORDS = setOf("فكره", "حاجه", "ملاحظه", "افكار", "حاجات", "ملاحظات")
