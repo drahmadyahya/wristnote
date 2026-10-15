@@ -25,7 +25,11 @@ adb shell am broadcast -a com.google.android.wearable.app.DEBUG_SURFACE --es ope
   --ecn component com.ahmad.wristnote/com.ahmad.wristnote.RecordTileService | tee $OUT/tile.txt
 IDX=$(grep -o 'Index=\[[0-9]*\]' $OUT/tile.txt | grep -o '[0-9]*' | head -1)
 adb shell am broadcast -a com.google.android.wearable.app.DEBUG_SURFACE --es operation show-tile --ei index "${IDX:-0}"
-shot watch_6_tile 4
+shot watch_6_tile 5
+# fallback: tiles are to the left of the watch face
+adb shell input keyevent KEYCODE_HOME; sleep 2
+adb shell input swipe 420 227 30 227 250
+shot watch_7_tiles_swipe 3
 adb shell cmd package query-services -a android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST > $OUT/complications.txt
 adb logcat -d -s Nerdly AndroidRuntime:E > $OUT/logcat.txt
 exit 0

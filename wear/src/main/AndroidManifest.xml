@@ -36,6 +36,7 @@
         <activity
             android:name=".AnswerActivity"
             android:exported="false"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:excludeFromRecents="true" />
 

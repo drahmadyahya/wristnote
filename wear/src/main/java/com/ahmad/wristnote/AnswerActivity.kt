@@ -15,6 +15,17 @@ class AnswerActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        render(intent)
+    }
+
+    // a newer answer arrives while this screen is open: show it instead of the old one
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        render(intent)
+    }
+
+    private fun render(intent: android.content.Intent) {
         val title = intent.getStringExtra("title") ?: ""
         val body = intent.getStringExtra("body") ?: ""
         val w = resources.displayMetrics.widthPixels
