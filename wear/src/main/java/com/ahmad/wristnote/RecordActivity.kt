@@ -154,20 +154,25 @@ class RecordActivity : Activity() {
 
         val app = applicationContext
         val ui = !isFinishing
+        // instant feedback: the clip is kept on the watch from here on
+        if (ui) view.show(RecordView.Mode.SENT, "اتحفظت")
+        var finished = false
+        fun done(delay: Long) { if (!finished) { finished = true; handler.postDelayed({ finish() }, delay) } }
+        handler.postDelayed({ done(0) }, 4000)  // never leave the screen hanging
         Wearable.getDataClient(app).putDataItem(req)
             .addOnSuccessListener {
                 if (!ui) return@addOnSuccessListener
                 Wearable.getNodeClient(app).connectedNodes.addOnCompleteListener { t ->
                     val connected = t.isSuccessful && !t.result.isNullOrEmpty()
-                    if (connected) view.show(RecordView.Mode.SENT, "اتبعت")
+                    if (connected) view.caption("اتبعت")
                     else view.show(RecordView.Mode.QUEUED, "اتحفظت\nهتتبعت لما الموبايل يتوصل")
-                    handler.postDelayed({ finish() }, if (connected) 1100 else 2000)
+                    done(if (connected) 900 else 2000)
                 }
             }
             .addOnFailureListener {
                 if (!ui) return@addOnFailureListener
                 view.show(RecordView.Mode.ERROR, "متبعتتش\nجرّب تاني")
-                handler.postDelayed({ finish() }, 2200)
+                done(2200)
             }
     }
 

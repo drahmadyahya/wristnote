@@ -82,7 +82,11 @@ class RecordView(context: Context) : View(context) {
         postInvalidateOnAnimation()
     }
 
+    /** Changes only the caption, without replaying the badge animation. */
+    fun caption(text: String) { message = text; contentDescription = text; invalidate() }
+
     fun show(newMode: Mode, text: String) {
+        if (newMode == mode && mode != Mode.RECORDING) { caption(text); return }
         mode = newMode
         message = text
         if (newMode == Mode.NEED_MIC) { resultProgress = 1f; invalidate(); return }

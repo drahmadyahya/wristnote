@@ -10,17 +10,17 @@ shot() { sleep "${2:-2}"; adb exec-out screencap -p > "$OUT/$1.png"; }
 adb logcat -c
 adb shell am start -n com.ahmad.wristnote/.RecordActivity
 shot watch_1_recording 3
-adb shell input tap 225 225
-shot watch_2_saved 1
+adb shell input tap 227 227
+shot watch_2_saved 0.6
 sleep 3
-adb shell am start -n com.ahmad.wristnote/.AnswerActivity \
-  --es title "فاضل ٣ في المشتريات" --es body "$(printf '• لبن\n• عيش\n• جبنة')" --es kind answer
+NL=$'\n'
+adb shell "am start -n com.ahmad.wristnote/.AnswerActivity --es kind answer --es title 'فاضل ٣ في المشتريات' --es body '• لبن${NL}• عيش${NL}• جبنة'"
 shot watch_3_answer 3
-adb shell am start -n com.ahmad.wristnote/.AnswerActivity \
-  --es title "صباح الخير" --es body "$(printf 'الخميس ١٥ أكتوبر\nالنهارده عندك حاجتين:\n• ٧:٠٠ م  معاد الدكتور\n• ٩:٠٠ م  تذكير: أكلم أحمد\nفاضل ٥ في نوتك: المشتريات (٥)\nامبارح سجلت ٣ أفكار.')" --es kind brief
+adb shell "am start -n com.ahmad.wristnote/.AnswerActivity --es kind brief --es title 'صباح الخير' --es body 'الخميس ١٥ أكتوبر${NL}النهارده عندك حاجتين:${NL}• ٧:٠٠ م  معاد الدكتور${NL}• ٩:٠٠ م  تذكير: أكلم أحمد${NL}فاضل ٥ في نوتك: المشتريات (٥)${NL}امبارح سجلت ٣ أفكار.'"
 shot watch_4_brief 3
-adb shell input swipe 225 350 225 120 300; shot watch_5_brief_scrolled
-adb shell input keyevent KEYCODE_BACK
+adb shell input swipe 225 380 225 100 300; shot watch_5_brief_scrolled
+adb shell am force-stop com.ahmad.wristnote
+adb shell input keyevent KEYCODE_HOME; sleep 2
 adb shell am broadcast -a com.google.android.wearable.app.DEBUG_SURFACE --es operation add-tile \
   --ecn component com.ahmad.wristnote/com.ahmad.wristnote.RecordTileService | tee $OUT/tile.txt
 IDX=$(grep -o 'Index=\[[0-9]*\]' $OUT/tile.txt | grep -o '[0-9]*' | head -1)
