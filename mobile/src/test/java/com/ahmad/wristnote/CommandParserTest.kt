@@ -245,4 +245,17 @@ class CommandParserTest {
         val c = p("عند اي يوم الخمس") as Command.Ask
         assertEquals(AskKind.AGENDA, c.what); assertEquals("15/10 00:00", day(c.dayStart))
     }
+
+    @Test fun misheardVerbBeforeNotebook() {
+        val c = p("بيف في نوتة المشتريات زيت وصكر") as Command.AddToNote
+        assertEquals(2L, c.notebookId); assertEquals("زيت وصكر", c.text)
+    }
+    @Test fun fuzzyThursday() {
+        val c = p("عندي اي يوم الخنيس") as Command.Ask
+        assertEquals("15/10 00:00", day(c.dayStart))
+    }
+    @Test fun fuzzyWeekdayInEvent() {
+        val c = p("احفظ معاد الدكتور يوم الخنيس الساعة ٧") as Command.Event
+        assertEquals("15/10 19:00", at(c.at))
+    }
 }

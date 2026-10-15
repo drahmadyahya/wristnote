@@ -39,11 +39,13 @@ tap "ملخص"; shot phone_5_answer_sheet
 adb shell input keyevent KEYCODE_BACK; sleep 2
 adb shell input swipe 540 1900 540 700 400; shot phone_6_ideas_scrolled
 tap "الإعدادات"; shot phone_7_settings
-adb shell input swipe 540 1900 540 600 400; shot phone_8_settings_more
+adb shell input swipe 540 1500 540 500 600; shot phone_8_settings_more
 adb shell input keyevent KEYCODE_BACK
 adb shell cmd uimode night no
 adb shell am force-stop com.ahmad.wristnote
 adb shell am start -W -n com.ahmad.wristnote/.MainActivity
 shot phone_9_light 8
 adb logcat -d -s Nerdly AndroidRuntime:E > $OUT/logcat_ui.txt
+adb logcat -d -b crash > $OUT/crashes.txt
+adb logcat -d ActivityTaskManager:I ActivityManager:I *:S | tail -200 > $OUT/activities.txt
 exit 0

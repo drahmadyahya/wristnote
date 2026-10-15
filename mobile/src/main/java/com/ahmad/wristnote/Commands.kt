@@ -194,6 +194,12 @@ object CommandParser {
         "الاتنينن" to Calendar.MONDAY, "الاربعا" to Calendar.WEDNESDAY, "الجمعا" to Calendar.FRIDAY,
         "السبط" to Calendar.SATURDAY, "الحاد" to Calendar.SUNDAY,
     )
+    /** "الخنيس" -> Thursday: one letter off a weekday name, only right after "يوم". */
+    private fun fuzzyWeekday(w: String): Int? {
+        if (w.length < 5) return null
+        return WEEKDAYS.entries.firstOrNull { it.key.length >= 5 && Ar.lev(it.key, w) <= 1 }?.value
+    }
+
     private val CLOCK_WORD = setOf("الساعه", "ساعه")
     private val HOUR_UNIT = setOf("ساعه", "ساعات", "ساعتين")
     private val MIN_UNIT = setOf("دقيقه", "دقايق", "دقائق", "دقيقتين", "دقيقة")
@@ -262,6 +268,7 @@ object CommandParser {
                 w in TODAY -> { dayOffset = 0; t.use(k) }
                 w in TOMORROW -> { dayOffset = 1; t.use(k) }
                 w in WEEKDAYS -> { weekday = WEEKDAYS[w]; t.use(k); if (t[k - 1] == "يوم") t.use(k - 1) }
+                t[k - 1] == "يوم" && fuzzyWeekday(w) != null -> { weekday = fuzzyWeekday(w); t.use(k - 1, k) }
                 w == "يوم" && WEEKDAYS.containsKey("ال" + t[k + 1]) -> { weekday = WEEKDAYS["ال" + t[k + 1]]; t.use(k, k + 1) }
                 w == "يوم" && t[k + 1].toIntOrNull()?.let { it in 1..31 } == true -> { dayOfMonth = t[k + 1].toInt(); t.use(k, k + 1) }
             }
@@ -585,7 +592,8 @@ object CommandParser {
         if (best != null && t.size <= 7) return Command.Ask(AskKind.NOTEBOOK, notebookId = best.first.id)
 
         if (t.size <= 3 && n.any { it in TODAY } && "كام" in n) return Command.Ask(AskKind.DATE, startOfDay(now))
-        val dayWord = n.any { it in TODAY || it in TOMORROW || it in WEEKDAYS }
+        val dayWord = n.any { it in TODAY || it in TOMORROW || it in WEEKDAYS } ||
+            t.n.indices.any { t[it] == "يوم" && fuzzyWeekday(t[it + 1]) != null }
         if (n.any { it in AGENDA_WORDS } || (dayWord && t.size <= 5)) {
             val w = parseTime(Toks(text(t)), now)
             return Command.Ask(AskKind.AGENDA, startOfDay(w?.at ?: now))
@@ -638,6 +646,8 @@ object CommandParser {
         }
         val h = hit!!
         verb?.let { t.use(it) }
+        // no verb recognised but "نوتة" comes early: whatever precedes it is a misheard verb ("بيف في نوتة…")
+        if (verb == null && container != null && container <= 2) for (k in 0 until container) t.use(k)
         for (k in h.start until h.end) t.use(k)
         // container word / linkers right before the title
         var k = h.start - 1
