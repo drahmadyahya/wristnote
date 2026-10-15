@@ -56,16 +56,22 @@ class RecordActivity : Activity() {
             setOnClickListener { onTap() }
         }
         setContentView(view)
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            start()
-        } else {
-            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
+        val needNotif = android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        val needMic = checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
+        when {
+            // notifications: answers and the morning brief appear on the watch
+            needMic || needNotif -> requestPermissions(
+                listOfNotNull(Manifest.permission.RECORD_AUDIO.takeIf { needMic },
+                    "android.permission.POST_NOTIFICATIONS".takeIf { needNotif }).toTypedArray(), REQ_MIC)
+            else -> start()
         }
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        if (code == REQ_MIC && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) start()
+        if (code != REQ_MIC) return
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) start()
         else { done = true; view.show(RecordView.Mode.NEED_MIC, "محتاج إذن المايك\nالمس عشان تسمح") }
     }
 

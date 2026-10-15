@@ -21,9 +21,13 @@ sealed class Command {
                          val newHeading: String? = null) : Command()
     /** "اعملي نوتة اسمها X وضيف جواها Y" */
     data class CreateNotebook(val title: String, val heading: String?, val items: List<String>) : Command()
+    /** A question; the answer goes back to the watch. */
+    data class Ask(val what: AskKind, val dayStart: Long = 0L, val notebookId: Long = 0L) : Command()
     /** User clearly asked for a notebook we don't have. */
     data class NoteNotFound(val name: String, val text: String) : Command()
 }
+
+enum class AskKind { AGENDA, NOTEBOOK, LAST_IDEA, REMINDERS, BRIEF, DATE, TIME }
 
 data class NotebookRef(
     val id: Long, val title: String,
@@ -418,6 +422,7 @@ object CommandParser {
         val t = Toks(text)
         if (t.size == 0) return null
 
+        question(Toks(text), notebooks, now)?.let { return it }
         createNotebook(t)?.let { return it }
         addToNote(Toks(text), notebooks)?.let { return it }
 
@@ -526,6 +531,60 @@ object CommandParser {
         val clean = parts.map { it.joinToString(" ").trim() }.filter { it.isNotEmpty() }
         return if (clean.size > 1 && clean.all { it.split(" ").size <= 4 }) clean else listOf(text.trim())
     }
+
+    // ───────────── questions ─────────────
+    private val QWORDS = setOf("ايه", "ايش", "اي", "شو", "ماذا", "امتي", "امتى", "كام", "مين", "فين", "هل", "ايه؟")
+    private val ASK_VERBS = setOf("قولي", "قوللي", "قلي", "وريني", "ورينى", "اقرالي", "اقرالى", "اقرا", "اعرضلي", "فاضل", "فاضلي", "اسمعني")
+    private val AGENDA_WORDS = setOf("عندي", "ورايا", "وراي", "مواعيد", "مواعيدي", "المواعيد", "جدول", "جدولي", "الجدول",
+        "اجندتي", "الاجنده", "برنامجي", "مشغول", "فاضي", "مشاويري", "مشاوير")
+    private val REMINDER_WORDS = setOf("تذكيراتي", "التذكيرات", "تذكيرات", "هتفكرني", "فكرتني", "المنبهات", "منبهاتي")
+    private val IDEA_WORDS = setOf("فكره", "حاجه", "ملاحظه", "افكار", "حاجات", "ملاحظات")
+
+    private fun startOfDay(at: Long): Long = Calendar.getInstance().apply {
+        timeInMillis = at; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    private fun question(t: Toks, notebooks: List<NotebookRef>, now: Long): Command.Ask? {
+        // questions are short; long sentences are ideas that happen to contain a question word
+        if (t.size == 0 || t.size > 9) return null
+        // commands win: "ضيف…", "اعملي نوتة…", "فكرني…", "ظبطلي المنبه…"
+        if ((0 until minOf(3, t.size)).any { t[it] in ADD_VERBS || isCreateVerb(t[it]) && t[it + 1] in CONTAINERS }) return null
+        if ((0 until t.size).any { k -> REMIND_PREFIX.any { t[k].startsWith(it) } || t[k] in ALARM_WORDS }) return null
+        val n = t.n.map { it.trimEnd('؟', '?') }.toSet()
+        val asked = text(t).contains('؟') || text(t).contains('?') || n.any { it in QWORDS } || t[0] in ASK_VERBS
+        if (!asked && n.none { it == "ملخص" }) return null
+
+        if ("ملخص" in n) return Command.Ask(AskKind.BRIEF, startOfDay(now))
+        if ("تاريخ" in n || "التاريخ" in n) return Command.Ask(AskKind.DATE, startOfDay(now))
+        if (("الساعه" in n || "ساعه" in n) && "كام" in n && t.size <= 4) return Command.Ask(AskKind.TIME)
+        if ("اخر" in n && n.any { it in IDEA_WORDS }) return Command.Ask(AskKind.LAST_IDEA)
+        if (n.any { it in REMINDER_WORDS }) return Command.Ask(AskKind.REMINDERS)
+
+        // "ايه اللي في نوتة الشغل" / "فاضل ايه في المشتريات"
+        val keys = t.n.map { Ar.key(it.trimEnd('؟', '?')) }
+        var best: Pair<NotebookRef, Int>? = null
+        for (b in notebooks) {
+            val tk = b.title.trim().split(Regex("\\s+")).map { Ar.key(Ar.token(it)) }.filter { it.isNotEmpty() }
+            if (tk.isEmpty()) continue
+            for (s in 0..t.size - tk.size) {
+                if ((0 until tk.size).all { Ar.close(keys[s + it], tk[it]) }) {
+                    val score = tk.sumOf { it.length }
+                    if (best == null || score > best.second) best = b to score
+                }
+            }
+        }
+        if (best != null && t.size <= 7) return Command.Ask(AskKind.NOTEBOOK, notebookId = best.first.id)
+
+        if (t.size <= 3 && n.any { it in TODAY } && "كام" in n) return Command.Ask(AskKind.DATE, startOfDay(now))
+        val dayWord = n.any { it in TODAY || it in TOMORROW || it in WEEKDAYS }
+        if (n.any { it in AGENDA_WORDS } || (dayWord && t.size <= 5)) {
+            val w = parseTime(Toks(text(t)), now)
+            return Command.Ask(AskKind.AGENDA, startOfDay(w?.at ?: now))
+        }
+        return null
+    }
+
+    private fun text(t: Toks) = t.raw.joinToString(" ")
 
     private fun addToNote(t: Toks, notebooks: List<NotebookRef>): Command? {
         val verb = (0 until minOf(4, t.size)).firstOrNull { t[it] in ADD_VERBS }

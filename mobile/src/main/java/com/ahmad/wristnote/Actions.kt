@@ -35,6 +35,11 @@ object Actions {
         is Command.Event -> event(ctx, cmd)
         is Command.AddToNote -> addToNote(ctx, cmd)
         is Command.CreateNotebook -> createNotebook(ctx, cmd)
+        is Command.Ask -> {
+            val a = Answers.build(ctx, cmd, System.currentTimeMillis())
+            WatchLink.send(ctx, a.title, a.body, "answer")
+            Result("answer", a.title + "\n" + a.body, true)
+        }
         is Command.NoteNotFound -> Result("idea",
             if (cmd.name.isBlank()) "مفيش نوتة بالاسم ده، اتحفظت كفكرة" else "مفيش نوتة اسمها «${cmd.name}»، اتحفظت كفكرة", false)
     }
@@ -211,6 +216,10 @@ object Reminders {
         file(ctx).writeText(a.toString())
     }
 
+    /** Pending reminders, soonest first. */
+    fun upcoming(ctx: Context): List<Pair<Long, String>> =
+        load(ctx).filter { it.first > System.currentTimeMillis() - 60_000 }.sortedBy { it.first }
+
     fun schedule(ctx: Context, at: Long, text: String) {
         val list = load(ctx).filter { it.first > System.currentTimeMillis() - 60_000 }.toMutableList()
         list.add(at to text); store(ctx, list)
@@ -261,6 +270,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
             intent.action == "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED") {
             Reminders.rearmAll(ctx)
+            Brief.schedule(ctx)
         }
     }
 }

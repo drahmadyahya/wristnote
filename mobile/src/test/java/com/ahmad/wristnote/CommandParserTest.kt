@@ -183,4 +183,41 @@ class CommandParserTest {
         assertTrue(Ar.close("جيم", "gym"))
         assertTrue(!Ar.close("الشغل", "nerdly"))
     }
+
+    private fun day(c: Long): String {
+        val k = Calendar.getInstance().apply { timeInMillis = c }
+        return "%d/%d %02d:%02d".format(k.get(Calendar.DAY_OF_MONTH), k.get(Calendar.MONTH) + 1, k.get(Calendar.HOUR_OF_DAY), k.get(Calendar.MINUTE))
+    }
+    @Test fun askAgendaToday() {
+        val c = p("عندي إيه النهارده؟") as Command.Ask
+        assertEquals(AskKind.AGENDA, c.what); assertEquals("14/10 00:00", day(c.dayStart))
+    }
+    @Test fun askAgendaTomorrow() {
+        val c = p("ورايا ايه بكرة") as Command.Ask
+        assertEquals(AskKind.AGENDA, c.what); assertEquals("15/10 00:00", day(c.dayStart))
+    }
+    @Test fun askAgendaWeekday() {
+        val c = p("إيه مواعيدي يوم السبت") as Command.Ask
+        assertEquals("17/10 00:00", day(c.dayStart))
+    }
+    @Test fun askNotebook() {
+        val c = p("إيه اللي في نوتة الشغل") as Command.Ask
+        assertEquals(AskKind.NOTEBOOK, c.what); assertEquals(1L, c.notebookId)
+    }
+    @Test fun askNotebookFaadel() {
+        val c = p("فاضل ايه في المشتريات") as Command.Ask
+        assertEquals(2L, c.notebookId)
+    }
+    @Test fun askLastIdea() { assertEquals(AskKind.LAST_IDEA, (p("ايه آخر فكرة قلتها") as Command.Ask).what) }
+    @Test fun askReminders() { assertEquals(AskKind.REMINDERS, (p("ايه التذكيرات اللي عندي") as Command.Ask).what) }
+    @Test fun askBrief() { assertEquals(AskKind.BRIEF, (p("ملخص النهارده") as Command.Ask).what) }
+    @Test fun askDate() { assertEquals(AskKind.DATE, (p("النهارده كام") as Command.Ask).what) }
+    @Test fun commandsStillCommands() {
+        assertTrue(p("ضيف في نوتة الشغل تحت المهام نراجع العقد") is Command.AddToNote)
+        assertTrue(p("عندي اجتماع بكرة الساعة ١٠ الصبح") is Command.Event)
+        assertTrue(p("فكرني بكرة الساعة ٥ اكلم احمد") is Command.Reminder)
+    }
+    @Test fun longIdeaWithQuestionWordIsNotAgenda() {
+        assertNull(p("فكرة ايه رأيك نعمل مشروع قهوة صغير جنب الشغل الجديد بكرة"))
+    }
 }

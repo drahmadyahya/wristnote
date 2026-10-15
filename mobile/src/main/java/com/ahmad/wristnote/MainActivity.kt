@@ -56,6 +56,7 @@ class MainActivity : Activity() {
         hadModel = ModelManager.usable(this) != null
         if (hadModel) TranscribeWorker.enqueuePending(this)
         Reminders.rearmAll(this)
+        Brief.schedule(this)
     }
 
     override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); out.putInt("tab", tab) }

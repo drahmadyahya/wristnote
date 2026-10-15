@@ -13,6 +13,7 @@ object Notifier {
     // new id: channel sound/vibration can't be changed after a channel is created
     private const val REMINDERS = "reminders_sound"
     private const val WAITING_ID = 1
+    private const val BRIEF_ID = 2
 
     private fun channels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
@@ -68,6 +69,13 @@ object Notifier {
     /** Confirms what a voice command did. */
     fun commandDone(ctx: Context, note: Note, ok: Boolean) {
         channels(ctx)
+        if (note.kind == "answer") {
+            // the watch shows its own copy, so keep this one on the phone
+            val lines = (note.summary ?: "").split("\n", limit = 2)
+            notify(ctx, (note.id % Int.MAX_VALUE).toInt(),
+                base(ctx, NOTES, lines[0], lines.getOrElse(1) { "" }).setLocalOnly(true))
+            return
+        }
         val title = when (note.kind) {
             "alarm" -> if (ok) "اتظبط المنبه" else "المنبه محتاج خطوة"
             "reminder" -> "هفكّرك"
@@ -118,6 +126,11 @@ object Notifier {
             .setSilent(true)
             .setProgress(0, 0, true)
             .build()
+    }
+
+    fun brief(ctx: Context, title: String, body: String) {
+        channels(ctx)
+        notify(ctx, BRIEF_ID, base(ctx, NOTES, title, body).setLocalOnly(true))
     }
 
     fun waitingForModel(ctx: Context) {

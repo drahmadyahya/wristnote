@@ -61,6 +61,30 @@ object SettingsSheet {
             })
         }
 
+        section(s, ui, "ملخص الصبح")
+        val on = Brief.enabled(activity)
+        s.body.addView(choice(activity, ui, "ابعتلي ملخص كل يوم",
+            "مواعيدك وتذكيراتك والبنود اللي فاضلة، على الساعة والموبايل.",
+            if (on) "الساعة ${Brief.timeText(activity)}" else null, on) {
+            Brief.set(activity, !on); s.dialog.dismiss(); show(activity, ui)
+        })
+        s.body.addView(ui.row(
+            ui.pillButton("غيّر الوقت", filled = false) {
+                s.dialog.dismiss()
+                android.app.TimePickerDialog(activity, { _, h, m ->
+                    Brief.set(activity, true, h, m); show(activity, ui)
+                }, Brief.hour(activity), Brief.minute(activity), false).show()
+            },
+            ui.pillButton("جرّبه دلوقتي", filled = false) {
+                Thread { Brief.deliver(activity.applicationContext) }.start()
+                android.widget.Toast.makeText(activity, "اتبعت للساعة", android.widget.Toast.LENGTH_SHORT).show()
+            },
+        ).apply {
+            setPadding(ui.dp(16), ui.dp(4), ui.dp(16), ui.dp(8))
+            for (i in 0 until childCount) getChildAt(i).layoutParams =
+                LinearLayout.LayoutParams(0, -2, 1f).apply { if (i > 0) marginStart = ui.dp(10) }
+        })
+
         section(s, ui, "الأوامر الصوتية")
         for (p in perms(activity)) {
             s.body.addView(permRow(activity, ui, p) { s.dialog.dismiss(); p.fix(activity) })
@@ -74,6 +98,10 @@ object SettingsSheet {
             "احفظ معاد الدكتور يوم الخميس الساعة ٧",
             "ضيف في نوتة الشغل تحت المهام نراجع العقد",
             "اعملي نوتة اسمها المشتريات وضيف جواها لبن وعيش",
+            "عندي إيه بكرة؟",
+            "فاضل إيه في نوتة الشغل؟",
+            "إيه التذكيرات اللي عندي؟",
+            "ملخص النهارده",
         ).forEach { ex ->
             s.body.addView(ui.text(15f, color = ui.ink, lineMult = 1.4f).apply {
                 text = "«$ex»"
@@ -81,7 +109,7 @@ object SettingsSheet {
             })
         }
         s.body.addView(ui.text(13f, color = ui.muted, lineMult = 1.4f).apply {
-            text = "أي حاجة تانية بتتحفظ كفكرة عادية."
+            text = "الأسئلة بتترد عليك على الساعة. وأي حاجة تانية بتتحفظ كفكرة عادية."
             setPadding(ui.dp(16), ui.dp(6), ui.dp(16), ui.dp(8))
         })
         s.show()

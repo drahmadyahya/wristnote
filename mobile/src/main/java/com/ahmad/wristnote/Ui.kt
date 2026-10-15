@@ -107,7 +107,7 @@ class Ui(private val ctx: Context) {
 
     fun kindIcon(kind: String) = when (kind) {
         "alarm" -> R.drawable.ic_alarm; "reminder" -> R.drawable.ic_bell
-        "event" -> R.drawable.ic_event; "note" -> R.drawable.ic_list; else -> 0
+        "event" -> R.drawable.ic_event; "note" -> R.drawable.ic_list; "answer" -> R.drawable.ic_answer; else -> 0
     }
 
     fun ideas(n: Int) = when {
