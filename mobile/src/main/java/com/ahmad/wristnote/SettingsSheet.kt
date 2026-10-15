@@ -40,47 +40,6 @@ object SettingsSheet {
         val s = Sheet(activity, ui)
         s.title("الإعدادات")
 
-        section(s, ui, "دقة الكلام")
-        val sel = ModelManager.selected(activity)
-        for (m in ModelManager.Model.values().reversed()) {
-            val ready = ModelManager.isReady(activity, m)
-            val p = ModelManager.poll(activity, m)
-            val (name, desc) = when (m) {
-                ModelManager.Model.FAST -> "سريع" to "الأوامر والأفكار بتتكتب في ثواني."
-                ModelManager.Model.ACCURATE -> "سريع + تحسين الأفكار" to
-                    "الأوامر بتتنفّذ بنفس السرعة، والأفكار العادية بتتكتب تاني بدقة أعلى في الخلفية (حوالي دقيقة لكل فكرة)."
-            }
-            val status = when {
-                ready -> null
-                p in 0..99 -> "بينزل… ${Fmt.num(p)}٪"
-                else -> "محتاج تنزيل (${Fmt.num(m.mb)} ميجا)"
-            }
-            s.body.addView(choice(activity, ui, name, desc, status, m == sel) {
-                ModelManager.select(activity, m)
-                if (!ModelManager.isReady(activity, m)) ModelManager.startDownload(activity, m)
-                s.dialog.dismiss(); show(activity, ui)
-            })
-        }
-
-        section(s, ui, "الرد بصوت")
-        val voice = WatchLink.voice(activity)
-        listOf(
-            Triple(WatchLink.Voice.WATCH, "من الساعة", "الساعة تقرالك الإجابة بصوت أول ما توصل."),
-            Triple(WatchLink.Voice.PHONE, "من الموبايل", "الموبايل يقرا الإجابة (لو الساعة مفيهاش صوت عربي)."),
-            Triple(WatchLink.Voice.OFF, "من غير صوت", "الإجابة تظهر مكتوبة بس."),
-        ).forEach { (v, name, desc) ->
-            s.body.addView(choice(activity, ui, name, desc, null, v == voice) {
-                WatchLink.setVoice(activity, v); s.dialog.dismiss(); show(activity, ui)
-            })
-        }
-        s.body.addView(ui.pillButton("جرّب الصوت على الموبايل", filled = false) {
-            Speaker.sayAsync(activity, "أهلًا يا دكتور أحمد. عندك بكرة حاجتين: ٧:٠٠ م معاد الدكتور.") {
-                activity.runOnUiThread {
-                    android.widget.Toast.makeText(activity, "مفيش صوت عربي على الموبايل. نزّله من إعدادات تحويل النص لكلام.", android.widget.Toast.LENGTH_LONG).show()
-                }
-            }
-        }, LinearLayout.LayoutParams(-1, -2).apply { setMargins(ui.dp(16), ui.dp(4), ui.dp(16), ui.dp(8)) })
-
         section(s, ui, "ملخص الصبح")
         val on = Brief.enabled(activity)
         s.body.addView(choice(activity, ui, "ابعتلي ملخص كل يوم",
@@ -116,6 +75,7 @@ object SettingsSheet {
             "فكرني بكرة الساعة ٥ أكلم أحمد",
             "فكرني كمان ساعة بالاجتماع",
             "احفظ معاد الدكتور يوم الخميس الساعة ٧",
+            "سجل معاد مع عبد الرحمن يوم السبت الساعة ٨ الصبح في القاهرة",
             "ضيف في نوتة الشغل تحت المهام نراجع العقد",
             "اعملي نوتة اسمها المشتريات وضيف جواها لبن وعيش",
             "عندي إيه بكرة؟",

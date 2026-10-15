@@ -421,7 +421,10 @@ object CommandParser {
     private val EVENT_FILLER = setOf("احفظ", "احفظلي", "احفظي", "سجل", "سجلي", "سجللي", "ضيف", "ضيفلي", "حط", "حطلي",
         "عندي", "ده", "دا", "دي", "في", "على", "علي", "المعاد", "الميعاد", "الموعد", "معاد", "ميعاد", "موعد",
         "التقويم", "تقويم", "الكالندر", "كالندر", "الاجنده", "اجنده")
-    private val APPOINTMENT_NOUNS = setOf("معاد", "ميعاد", "موعد", "اجتماع", "حجز")
+    private val EVENT_PREFIXES = listOf("معاد", "ميعاد", "موعد", "مواعيد", "اجتماع", "ميتنج", "ميتينج", "مقابله", "حجز")
+    private val SAVE_VERBS = setOf("احفظ", "احفظلي", "احفظي", "احفظيلي", "سجل", "سجلي", "سجللي", "سجليلي", "ثبت", "ثبتلي", "دون", "اكتبلي")
+    private val WHEN_QUALIFIERS = setOf("القادم", "القادمه", "الجاي", "الجايه", "الجاية", "اللي", "جاي", "الجديد")
+    private val APPOINTMENT_NOUNS = setOf("معاد", "ميعاد", "موعد", "اجتماع", "حجز", "معادي", "ميعادي", "موعدي")
     private val ADD_VERBS = setOf("ضيف", "اضيف", "ضيفي", "اضف", "ضف", "ضيفلي", "ضيفيلي", "تضيف", "تضيفلي", "زود", "زودلي",
         "حط", "حطلي", "حطي", "اكتب", "اكتبلي", "اكتبي", "سجل", "سجلي", "نزل", "نزلي", "دون", "دونلي", "ضيفها", "ضيفه")
     private val CONTAINERS = setOf("نوته", "النوته", "نوتا", "النوتا", "نوتي", "نوت", "النوت", "نوتس", "نوتات", "النوتات",
@@ -465,8 +468,9 @@ object CommandParser {
             }
         }
 
-        // calendar event
-        if ((0 until t.size).any { t[it] in EVENT_WORDS }) {
+        // calendar event: "معاد/موعد/اجتماع…" anywhere, or a sentence starting with "احفظ/سجل" that has a day or time
+        val eventWord = (0 until t.size).any { k -> t[k] in EVENT_WORDS || EVENT_PREFIXES.any { t[k].startsWith(it) } }
+        if (eventWord || t[0] in SAVE_VERBS) {
             val tt = Toks(text)
             val w = parseTime(tt, now)
             if (w != null) {
@@ -479,7 +483,12 @@ object CommandParser {
                     val before = idx.first() - 1
                     if (before >= 0 && tt[before] in APPOINTMENT_NOUNS) idx.add(0, before)
                 }
-                val title = idx.joinToString(" ") { tt.raw[it] }.let(::trimLead)
+                idx.removeAll { tt[it] in WHEN_QUALIFIERS }
+                var words = idx.map { tt.raw[it].trim('،', ',', '.') }.filter { it.isNotEmpty() }
+                // "معادي/معايا/معايت مع…" -> "معاد مع…"
+                if (words.isNotEmpty() && Ar.token(words[0]).let { it.startsWith("معا") || it.startsWith("ميعا") || it.startsWith("موعد") }
+                    && words[0].length in 4..6) words = listOf("معاد") + words.drop(1)
+                val title = trimLead(words.joinToString(" "))
                 return Command.Event(w.at, title.ifBlank { "معاد" }, w.hasClock)
             }
         }
@@ -639,10 +648,20 @@ object CommandParser {
             var c = container + 1
             while (t[c] in LINKERS) c++
             val spoken = t.raw.getOrNull(c)?.let { Ar.token(it) }.orEmpty()
-            // never guess: a wrong notebook is worse than none
+            // never guess an existing one: a clearly named new notebook gets created instead
+            val name = t.raw.getOrElse(c) { "" }.trim('،', ',', '.', ':')
             for (k in from..c) t.use(k)
             if (verb != null) t.use(verb)
-            return Command.NoteNotFound(t.raw.getOrElse(c) { "" }, content(t))
+            if (spoken.isEmpty() || spoken == "تحت") return Command.NoteNotFound(name, content(t))
+            var heading: String? = null
+            val tahta = (0 until t.size).firstOrNull { !t.used[it] && (t[it] == "تحت" || t[it] == "تحته") }
+            if (tahta != null) {
+                var s = tahta + 1
+                while (t[s] in HEADING_WORDS) s++
+                if (s < t.size) { heading = t.raw[s].trim('،', ',', ':', '.'); for (x in tahta..s) t.use(x) } else t.use(tahta)
+            }
+            val body = content(t)
+            return Command.CreateNotebook(name, heading, if (body.isBlank()) emptyList() else splitItems(body))
         }
         val h = hit!!
         verb?.let { t.use(it) }

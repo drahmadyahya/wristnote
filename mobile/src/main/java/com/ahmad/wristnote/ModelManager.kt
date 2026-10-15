@@ -20,9 +20,8 @@ object ModelManager {
 
     private const val PREFS = "model"
 
-    fun selected(ctx: Context): Model =
-        runCatching { Model.valueOf(prefs(ctx).getString("selected", Model.FAST.name)!!) }
-            .getOrDefault(Model.FAST)
+    /** Only the fast model is used: on a phone the large one was far too slow, even in the background. */
+    fun selected(ctx: Context): Model = Model.FAST
 
     fun select(ctx: Context, m: Model) = prefs(ctx).edit().putString("selected", m.name).apply()
 
@@ -32,10 +31,18 @@ object ModelManager {
     fun isReady(ctx: Context, m: Model = selected(ctx)) = file(ctx, m).let { it.exists() && it.length() > m.minBytes }
 
     /** The model for the first pass: the fast one whenever it is there. */
-    fun usable(ctx: Context): Model? = Model.values().reversed().firstOrNull { isReady(ctx, it) }
+    fun usable(ctx: Context): Model? = if (isReady(ctx, Model.FAST)) Model.FAST else null
 
     /** Ideas get a second, more accurate pass in the background. */
-    fun refineIdeas(ctx: Context) = selected(ctx) == Model.ACCURATE && isReady(ctx, Model.ACCURATE)
+    fun refineIdeas(ctx: Context) = false
+
+    /** Removes the large model (550 MB) and any background re-writes left from older versions. */
+    fun dropAccurate(ctx: Context) {
+        try { androidx.work.WorkManager.getInstance(ctx).cancelUniqueWork("refine") } catch (_: Exception) {}
+        val id = downloadId(ctx, Model.ACCURATE)
+        if (id != -1L) { try { dm(ctx).remove(id) } catch (_: Exception) {}; clear(ctx, Model.ACCURATE) }
+        file(ctx, Model.ACCURATE).delete(); part(ctx, Model.ACCURATE).delete()
+    }
 
     fun startDownload(ctx: Context, m: Model = selected(ctx)) {
         if (isReady(ctx, m) || downloadId(ctx, m) != -1L) return

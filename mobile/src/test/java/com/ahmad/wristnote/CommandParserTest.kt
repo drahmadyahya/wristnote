@@ -100,9 +100,9 @@ class CommandParserTest {
         val c = p("ضيف في نوتة الشغل تحت مراجعة الميزانية أرقام الربع التالت") as Command.AddToNote
         assertEquals(20L, c.anchorId); assertEquals("أرقام الربع التالت", c.text)
     }
-    @Test fun unknownNotebook() {
-        val c = p("ضيف في نوتة السفر شنطة الهدوم") as Command.NoteNotFound
-        assertEquals("السفر", c.name); assertEquals("شنطة الهدوم", c.text)
+    @Test fun unknownNotebookIsCreated() {
+        val c = p("ضيف في نوتة السفر شنطة الهدوم") as Command.CreateNotebook
+        assertEquals("السفر", c.title); assertEquals(listOf("شنطة الهدوم"), c.items)
     }
     @Test fun alarmStillWorksWithAddVerb() {
         assertTrue(p("حطلي منبه الساعة ٧ الصبح") is Command.Alarm)
@@ -166,7 +166,8 @@ class CommandParserTest {
         }
     }
     @Test fun noGuessingSingleNotebook() {
-        assertTrue(CommandParser.parse("ضيف في نوتة السفر شنطة", oneBook, now) is Command.NoteNotFound)
+        val c = CommandParser.parse("ضيف في نوتة السفر شنطة", oneBook, now) as Command.CreateNotebook
+        assertEquals("السفر", c.title)
     }
     @Test fun addToNamedExisting() {
         val c = p("ضيف في نوتة اسمها المشتريات زيت") as Command.AddToNote
@@ -262,5 +263,33 @@ class CommandParserTest {
     @Test fun spokenTimes() {
         assertEquals("الخميس: الساعة ٧ مساءً معاد الدكتور", Speaker.spoken("الخميس:\n• ٧:٠٠ م  معاد الدكتور").replace("، ", " ").replace(":  ", ": ").replace(Regex("\\s+"), " "))
         assertTrue(Speaker.spoken("• ٥:٣٠ ص اصحى").contains("الساعة ٥ ونص صباحًا"))
+    }
+
+    // ── the user's real sentences (16 Oct) ──
+    @Test fun userEventSaturdayEight() {
+        val c = p("احفظ معادي مع عبد الرحمن يوم السبت القادم الساعة الثامنة صباحا في القاهرة") as Command.Event
+        assertEquals("17/10 08:00", at(c.at)); assertEquals("معاد مع عبد الرحمن في القاهرة", c.title); assertTrue(c.timed)
+    }
+    @Test fun userEventTamanya() {
+        val c = p("احفظ معادي مع عبد الرحمن يوم السبت القادم الساعة تمانية صباحا في القاهرة") as Command.Event
+        assertEquals("17/10 08:00", at(c.at))
+    }
+    @Test fun userEventMisheardNoTime() {
+        val c = p("سجل معايت مع عبد الرحمن يوم السبت القادم. هنروح في القاهرة") as Command.Event
+        assertEquals("17/10", at(c.at).take(5)); assertTrue(!c.timed)
+        assertTrue(c.title, c.title.startsWith("معاد مع عبد الرحمن"))
+    }
+    @Test fun userEventDoctor() {
+        val c = p("احفظ معاد الدكتور يوم الخمس الساعة سبعة بالليل") as Command.Event
+        assertEquals("15/10 19:00", at(c.at)); assertEquals("معاد الدكتور", c.title)
+    }
+    @Test fun meetingWord() {
+        val c = p("عندي ميتنج مع الفريق بكرة الساعة ١١ الصبح") as Command.Event
+        assertEquals("15/10 11:00", at(c.at))
+    }
+    @Test fun userAddToMissingNotebookCreatesIt() {
+        // user has no "الشغل" notebook: it gets created with the heading
+        val d = CommandParser.parse("اضيف في نوتة الشغل تحت عنوان المهامي", oneBook, now) as Command.CreateNotebook
+        assertEquals("الشغل", d.title); assertEquals("المهامي", d.heading)
     }
 }
