@@ -4,6 +4,8 @@
 
     <!-- Internet is used only to download the speech model once. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- record on the phone when the watch isn't around -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- voice commands -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
@@ -39,7 +41,29 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
+
+        <activity
+            android:name=".VoiceActivity"
+            android:exported="true"
+            android:label="@string/record_short"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.ahmad.wristnote.record"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Record" />
+
+        <service
+            android:name=".RecordTile"
+            android:exported="true"
+            android:icon="@drawable/ic_mic"
+            android:label="@string/record_short"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".NotebookActivity"

@@ -14,10 +14,13 @@ adb shell svc power stayon true
 adb install -r -g mobile/build/outputs/apk/release/mobile-release.apk
 adb install -r -g mobile/build/outputs/apk/androidTest/release/mobile-release-androidTest.apk
 adb logcat -c
-adb shell am instrument -w -e class com.ahmad.wristnote.DevicePipelineTest \
+adb shell am instrument -w -e class com.ahmad.wristnote.DevicePipelineTest,com.ahmad.wristnote.VoiceActivityTest \
   com.ahmad.wristnote.test/androidx.test.runner.AndroidJUnitRunner | tee $OUT/instrument.txt
 adb pull /sdcard/Android/data/com.ahmad.wristnote/files/report.txt $OUT/report.txt || \
   adb shell run-as com.ahmad.wristnote cat files/report.txt > $OUT/report.txt || true
+for f in voice_report.txt voice_1_recording.png voice_2_result.png voice_idea_1_recording.png voice_idea_2_result.png; do
+  adb pull /sdcard/Android/data/com.ahmad.wristnote/files/$f $OUT/$f || true
+done
 adb logcat -d -s NerdlyTest Nerdly NerdlyWhisper AndroidRuntime:E > $OUT/logcat.txt
 
 shot() { sleep "${2:-2}"; adb exec-out screencap -p > "$OUT/$1.png"; }
@@ -29,6 +32,13 @@ adb shell am force-stop com.ahmad.wristnote
 adb shell cmd uimode night yes
 adb shell am start -W -n com.ahmad.wristnote/.MainActivity
 shot phone_1_ideas 8
+# the record button -> phone recorder with the real (emulator) microphone
+tap "سجّل فكرة"; shot phone_r1_recording 3
+tap "حفظ"; shot phone_r2_after_stop 4
+tap "تمام"; sleep 2
+adb shell am start -W -n com.ahmad.wristnote/.VoiceActivity; shot phone_r3_direct 3
+adb shell input keyevent KEYCODE_BACK; sleep 2
+adb shell am start -W -n com.ahmad.wristnote/.MainActivity; sleep 2
 tap "النوت"; shot phone_2_notebooks
 tap "المشتريات"; shot phone_3_notebook
 longpress() {

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Nerdly Task</string>
+    <string name="record_short">سجّل فكرة</string>
+    <string name="record_long">سجّل فكرة أو أمر بصوتك</string>
 </resources>

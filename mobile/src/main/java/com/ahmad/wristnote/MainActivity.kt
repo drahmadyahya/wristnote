@@ -106,12 +106,32 @@ class MainActivity : Activity() {
             addView(content)
         }
         val root = FrameLayout(this).apply { setBackgroundColor(ui.bg); addView(scroll) }
+        val rec = recordButton()
+        root.addView(rec, FrameLayout.LayoutParams(-2, ui.dp(64), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val b = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-            scroll.setPadding(b.left, b.top, b.right, b.bottom + ui.dp(40))
+            scroll.setPadding(b.left, b.top, b.right, b.bottom + ui.dp(120))
+            (rec.layoutParams as FrameLayout.LayoutParams).bottomMargin = b.bottom + ui.dp(20)
+            rec.requestLayout()
             insets
         }
         setContentView(root)
+    }
+
+    /** The big amber "record" pill, always within thumb reach. */
+    private fun recordButton() = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        setPadding(ui.dp(26), 0, ui.dp(30), 0)
+        background = android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(0x33000000),
+            ui.rounded(ui.accent, ui.dp(32f)), null)
+        elevation = ui.dp(8f)
+        contentDescription = "سجّل فكرة"
+        addView(ui.icon(R.drawable.ic_mic, ui.onAccent, 26))
+        addView(ui.text(18f, ui.semibold, ui.onAccent).apply { text = "سجّل" },
+            LinearLayout.LayoutParams(-2, -2).apply { marginStart = ui.dp(10) })
+        setOnClickListener { startActivity(VoiceActivity.intent(this@MainActivity)) }
     }
 
     private fun segTab(label: String, onClick: () -> Unit) = ui.text(15f, ui.medium).apply {
