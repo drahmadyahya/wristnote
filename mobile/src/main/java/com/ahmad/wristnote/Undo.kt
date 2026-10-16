@@ -24,7 +24,7 @@ object Undo {
         return when (u.optString("t")) {
             "event" -> "المعاد من التقويم"
             "reminder" -> if (u.optLong("at") > System.currentTimeMillis()) "التذكير" else null
-            "alarm" -> "المنبه من تطبيق الساعة"
+            "alarm" -> if (u.optLong("at") > System.currentTimeMillis()) "المنبه" else null
             "note" -> {
                 val nb = Notebooks.get(ctx, u.optLong("nb")) ?: return null
                 val ids = ids(u)
@@ -43,7 +43,7 @@ object Undo {
             when (u.optString("t")) {
                 "event" -> if (deleteEvent(ctx, u)) "اتمسح المعاد من التقويم" else "ملقيناش المعاد في التقويم"
                 "reminder" -> { Reminders.cancel(ctx, u.optLong("at"), u.optString("text", null)); "اتلغى التذكير" }
-                "alarm" -> if (dismissAlarm(ctx, u.optLong("at"))) "اتقفل المنبه" else "افتح الساعة وامسح المنبه"
+                "alarm" -> if (dismissAlarm(ctx, u.optLong("at"))) null else "فتحتلك المنبهات، امسح منبه ${Fmt.clock(u.optLong("at"))}"
                 "note" -> { removeBlocks(ctx, u); "اتشال من النوتة" }
                 else -> null
             }
@@ -101,27 +101,12 @@ object Undo {
     }
 
     // ───── Clock app alarm ─────
-    /** Android has no "delete alarm" for other apps; "dismiss" switches that one-time alarm off. */
+    /**
+     * Android gives other apps no way to delete a Clock alarm ("dismiss" was tested and
+     * does nothing for future alarms), so open the Clock's alarm list: one tap to delete.
+     */
     private fun dismissAlarm(ctx: Context, at: Long): Boolean {
         if (at < System.currentTimeMillis()) return true // already rang
-        val cal = Calendar.getInstance().apply { timeInMillis = at }
-        val intent = Intent(AlarmClock.ACTION_DISMISS_ALARM).apply {
-            putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_TIME)
-            putExtra(AlarmClock.EXTRA_HOUR, cal.get(Calendar.HOUR_OF_DAY))
-            putExtra(AlarmClock.EXTRA_MINUTES, cal.get(Calendar.MINUTE))
-            putExtra(AlarmClock.EXTRA_IS_PM, cal.get(Calendar.HOUR_OF_DAY) >= 12)
-            putExtra(AlarmClock.EXTRA_SKIP_UI, true)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        if (intent.resolveActivity(ctx.packageManager) == null) return showAlarms(ctx)
-        return try {
-            if (ctx is android.app.Activity) { ctx.startActivity(intent); true }
-            else Actions.startFromBackground(ctx, intent)
-        } catch (e: Exception) { showAlarms(ctx) }
-    }
-
-    /** Fallback: open the Clock app's alarm list so it's one tap to delete. */
-    private fun showAlarms(ctx: Context): Boolean {
         val i = Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try { if (ctx is android.app.Activity) ctx.startActivity(i) else Actions.startFromBackground(ctx, i) } catch (_: Exception) {}
         return false

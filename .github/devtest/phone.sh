@@ -61,18 +61,19 @@ tap "فكرة جديدة"; shot phone_4_idea_sheet
 adb shell input keyevent KEYCODE_BACK; sleep 2
 tap "ملخص"; shot phone_5_answer_sheet
 adb shell input keyevent KEYCODE_BACK; sleep 2
-# delete an appointment from the app -> asks, then removes it from the calendar too
-evq > $OUT/calendar_before_delete.txt
-adb shell input swipe 540 900 540 1900 300; sleep 1
-tap "احفظ معاد زيارة"; sleep 2
-adb shell input swipe 540 2000 540 800 400; sleep 1
-tap "حذف"; shot phone_d1_confirm 2
-tap "امسح الفكرة و"; shot phone_d2_deleted 2
-evq > $OUT/calendar_after_delete.txt
 adb shell input swipe 540 1900 540 700 400; shot phone_6_ideas_scrolled
 tap "الإعدادات"; shot phone_7_settings
 adb shell input swipe 540 1500 540 500 600; shot phone_8_settings_more
 adb shell input keyevent KEYCODE_BACK
+# delete an appointment from the app -> asks, then removes it from the calendar too
+adb shell am force-stop com.ahmad.wristnote
+adb shell am start -W -n com.ahmad.wristnote/.MainActivity; sleep 4
+evq > $OUT/calendar_before_delete.txt
+tap "احفظ معاد زيارة"; shot phone_d0_sheet 2
+tap "حذف" || { adb shell input swipe 540 2000 540 900 400; sleep 1; tap "حذف"; }
+shot phone_d1_confirm 2
+tap "امسح الفكرة و"; shot phone_d2_deleted 3
+evq > $OUT/calendar_after_delete.txt
 adb shell cmd uimode night no
 adb shell am force-stop com.ahmad.wristnote
 adb shell am start -W -n com.ahmad.wristnote/.MainActivity
