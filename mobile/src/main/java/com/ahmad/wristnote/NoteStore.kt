@@ -18,6 +18,8 @@ data class Note(
     val summary: String? = null,
     val took: Int = 0,
     val refined: Boolean = false,
+    /** What the command created (JSON), so deleting the note can remove it too. */
+    val undo: String? = null,
 )
 
 object NoteStore {
@@ -38,6 +40,7 @@ object NoteStore {
                 o.getString("audio"), o.optBoolean("failed"),
                 o.optString("kind", "idea"), if (o.isNull("summary")) null else o.optString("summary", null),
                 o.optInt("took", 0), o.optBoolean("refined"),
+                if (o.isNull("undo")) null else o.optString("undo", null),
             )
         }.sortedByDescending { it.id }
     }
@@ -60,7 +63,8 @@ object NoteStore {
         list.forEach {
             arr.put(JSONObject().put("id", it.id).put("text", it.text ?: JSONObject.NULL)
                 .put("audio", it.audio).put("failed", it.failed)
-                .put("kind", it.kind).put("summary", it.summary ?: JSONObject.NULL).put("took", it.took).put("refined", it.refined))
+                .put("kind", it.kind).put("summary", it.summary ?: JSONObject.NULL).put("took", it.took).put("refined", it.refined)
+                .put("undo", it.undo ?: JSONObject.NULL))
         }
         val tmp = File(ctx.filesDir, "notes.json.tmp")
         tmp.writeText(arr.toString())

@@ -11,8 +11,8 @@ android {
         applicationId = "com.ahmad.wristnote"
         minSdk = 29
         targetSdk = 35
-        versionCode = 18
-        versionName = "4.1"
+        versionCode = 19
+        versionName = "4.2"
         // CI device tests build for the x86_64 emulator with -Pabi=x86_64
         ndk { abiFilters += (project.findProperty("abi") as String? ?: "arm64-v8a") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

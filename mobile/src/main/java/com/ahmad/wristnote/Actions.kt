@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
 /** Carries out a parsed voice command. Returns (kind, summary, ok). */
 object Actions {
 
-    data class Result(val kind: String, val summary: String, val ok: Boolean)
+    data class Result(val kind: String, val summary: String, val ok: Boolean, val undo: JSONObject? = null)
 
     fun run(ctx: Context, cmd: Command): Result = when (cmd) {
         is Command.Alarm -> alarm(ctx, cmd)
@@ -57,7 +57,7 @@ object Actions {
         val summary = "منبه ${Fmt.whenText(c.at)}"
         val ok = startFromBackground(ctx, intent)
         if (!ok) Notifier.tapToFinish(ctx, "اضغط عشان يتظبط المنبه", summary, intent)
-        return Result("alarm", summary, ok)
+        return Result("alarm", summary, ok, JSONObject().put("t", "alarm").put("at", c.at))
     }
 
     /**
@@ -65,7 +65,7 @@ object Actions {
      * "Display over other apps" allowed, a brief invisible overlay window
      * makes the launch permitted (required on Android 15+).
      */
-    private fun startFromBackground(ctx: Context, intent: Intent): Boolean {
+    fun startFromBackground(ctx: Context, intent: Intent): Boolean {
         if (!Settings.canDrawOverlays(ctx)) return false
         val wm = ctx.getSystemService(WindowManager::class.java)
         val main = Handler(Looper.getMainLooper())
@@ -93,7 +93,8 @@ object Actions {
     // ───── reminder: our own exact notification ─────
     private fun reminder(ctx: Context, c: Command.Reminder): Result {
         Reminders.schedule(ctx, c.at, c.text)
-        return Result("reminder", "هفكّرك ${Fmt.whenText(c.at)}", true)
+        return Result("reminder", "هفكّرك ${Fmt.whenText(c.at)}", true,
+            JSONObject().put("t", "reminder").put("at", c.at).put("text", c.text))
     }
 
     // ───── calendar event ─────
@@ -132,7 +133,8 @@ object Actions {
                 put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
             })
         }
-        return Result("event", "اتسجل في التقويم: $summary", true)
+        return Result("event", "اتسجل في التقويم: $summary", true,
+            JSONObject().put("t", "event").put("id", eventId ?: -1L).put("title", c.title).put("timed", c.timed).put("at", c.at))
     }
 
     /** Primary writable calendar (Samsung or Google account). */
@@ -164,6 +166,7 @@ object Actions {
             Ar.key(Ar.token(nb.title)).let { it == key || Ar.close(it, key) }
         }
         val nb = existing ?: Notebook(Notebooks.newId(), c.title, emptyList()).also { Notebooks.put(ctx, it) }
+        val before = nb.blocks.map { it.id }.toSet()
         val heading = c.heading
         for (item in c.items) Notebooks.addItem(ctx, nb.id, null, item, heading)
         if (c.items.isEmpty() && heading != null) {
@@ -172,7 +175,7 @@ object Actions {
         }
         val count = if (c.items.isEmpty()) "" else " وفيها ${itemsText(c.items.size)}"
         val summary = if (existing != null) "النوتة «${nb.title}» موجودة$count" else "اتعملت نوتة «${nb.title}»$count"
-        return Result("note", summary, true)
+        return Result("note", summary, true, noteUndo(ctx, nb.id, before, existing == null))
     }
 
     private fun itemsText(n: Int) = when (n) { 1 -> "بند واحد"; 2 -> "بندين"; in 3..10 -> "${Fmt.num(n)} بنود"; else -> "${Fmt.num(n)} بند" }
@@ -180,6 +183,7 @@ object Actions {
     // ───── add to notebook ─────
     private fun addToNote(ctx: Context, c: Command.AddToNote): Result {
         val items = CommandParser.splitItems(c.text)
+        val before = Notebooks.get(ctx, c.notebookId)?.blocks?.map { it.id }?.toSet() ?: emptySet()
         var nb: Notebook? = null
         var anchor = c.anchorId
         for (item in items) {
@@ -194,7 +198,14 @@ object Actions {
         val heading = (idx downTo 0).firstOrNull { book.blocks[it].heading }?.let { book.blocks[it].text }
         val where = if (heading != null) "${book.title} ← $heading" else book.title
         val extra = if (c.newHeading != null && heading == c.newHeading) " (عنوان جديد)" else ""
-        return Result("note", "اتضافت في $where$extra", true)
+        return Result("note", "اتضافت في $where$extra", true, noteUndo(ctx, book.id, before, false))
+    }
+
+    /** The blocks this command added to a notebook (and whether it made the notebook). */
+    private fun noteUndo(ctx: Context, nbId: Long, before: Set<Long>, newNotebook: Boolean): JSONObject {
+        val added = JSONArray()
+        Notebooks.get(ctx, nbId)?.blocks?.filter { it.id !in before }?.forEach { added.put(it.id) }
+        return JSONObject().put("t", "note").put("nb", nbId).put("blocks", added).put("newNb", newNotebook)
     }
 }
 
@@ -246,6 +257,25 @@ object Reminders {
     }
 
     fun done(ctx: Context, at: Long) = store(ctx, load(ctx).filter { it.first != at })
+
+    /** Removes a pending reminder and its alarm. True if one was there. */
+    fun cancel(ctx: Context, at: Long, text: String?): Boolean {
+        val list = load(ctx)
+        val keep = list.filterNot { it.first == at && (text == null || it.second == text) }
+        val pi = PendingIntent.getBroadcast(
+            ctx, (at / 1000 % Int.MAX_VALUE).toInt(), Intent(ctx, ReminderReceiver::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+        )
+        if (pi != null) { ctx.getSystemService(AlarmManager::class.java).cancel(pi); pi.cancel() }
+        store(ctx, keep)
+        return keep.size != list.size || pi != null
+    }
+
+    /** True while this reminder's alarm is still armed (for tests). */
+    fun isArmed(ctx: Context, at: Long) = PendingIntent.getBroadcast(
+        ctx, (at / 1000 % Int.MAX_VALUE).toInt(), Intent(ctx, ReminderReceiver::class.java),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+    ) != null
 }
 
 class ReminderReceiver : BroadcastReceiver() {

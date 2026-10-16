@@ -71,7 +71,7 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
                 CommandParser.parse(note.text ?: "", Notebooks.all(ctx).map { it.ref() }, System.currentTimeMillis())
             } catch (e: Exception) { Log.e("Nerdly", "parse failed", e); null }
             if (cmd == null) {
-                val n = note.copy(kind = "idea", summary = null)
+                val n = note.copy(kind = "idea", summary = null, undo = null)
                 NoteStore.upsert(ctx, n)
                 Notifier.newIdea(ctx, n)
                 return
@@ -79,7 +79,7 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
             val r = try { Actions.run(ctx, cmd) } catch (e: Exception) {
                 Log.e("Nerdly", "action failed", e); Actions.Result("idea", "مقدرناش ننفّذ الأمر", false)
             }
-            val n = note.copy(kind = r.kind, summary = r.summary)
+            val n = note.copy(kind = r.kind, summary = r.summary, undo = r.undo?.toString())
             NoteStore.upsert(ctx, n)
             Notifier.commandDone(ctx, n, r.ok)
         }

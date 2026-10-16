@@ -14,14 +14,19 @@ adb shell svc power stayon true
 adb install -r -g mobile/build/outputs/apk/release/mobile-release.apk
 adb install -r -g mobile/build/outputs/apk/androidTest/release/mobile-release-androidTest.apk
 adb logcat -c
-adb shell am instrument -w -e class com.ahmad.wristnote.DevicePipelineTest,com.ahmad.wristnote.VoiceActivityTest \
+adb shell am instrument -w -e class com.ahmad.wristnote.DevicePipelineTest,com.ahmad.wristnote.VoiceActivityTest,com.ahmad.wristnote.UndoTest \
   com.ahmad.wristnote.test/androidx.test.runner.AndroidJUnitRunner | tee $OUT/instrument.txt
 adb pull /sdcard/Android/data/com.ahmad.wristnote/files/report.txt $OUT/report.txt || \
   adb shell run-as com.ahmad.wristnote cat files/report.txt > $OUT/report.txt || true
-for f in voice_report.txt voice_1_recording.png voice_2_result.png voice_idea_1_recording.png voice_idea_2_result.png; do
+for f in undo_report.txt voice_report.txt voice_1_recording.png voice_2_result.png voice_idea_1_recording.png voice_idea_2_result.png; do
   adb pull /sdcard/Android/data/com.ahmad.wristnote/files/$f $OUT/$f || true
 done
 adb logcat -d -s NerdlyTest Nerdly NerdlyWhisper AndroidRuntime:E > $OUT/logcat.txt
+# the Clock app's own alarm list (enabled=0 means switched off)
+db() { adb shell "find /data -name alarms.db 2>/dev/null | head -1"; }
+ADB_DB=$(db | tr -d '\r')
+adb shell "sqlite3 $ADB_DB 'select _id,hour,minutes,enabled,label from alarm_templates'" > $OUT/clock_alarms.txt 2>&1 || true
+evq() { adb shell "content query --uri content://com.android.calendar/events --projection title:dtstart:deleted" 2>&1; }
 
 shot() { sleep "${2:-2}"; adb exec-out screencap -p > "$OUT/$1.png"; }
 tap() {
@@ -56,6 +61,14 @@ tap "فكرة جديدة"; shot phone_4_idea_sheet
 adb shell input keyevent KEYCODE_BACK; sleep 2
 tap "ملخص"; shot phone_5_answer_sheet
 adb shell input keyevent KEYCODE_BACK; sleep 2
+# delete an appointment from the app -> asks, then removes it from the calendar too
+evq > $OUT/calendar_before_delete.txt
+adb shell input swipe 540 900 540 1900 300; sleep 1
+tap "احفظ معاد زيارة"; sleep 2
+adb shell input swipe 540 2000 540 800 400; sleep 1
+tap "حذف"; shot phone_d1_confirm 2
+tap "امسح الفكرة و"; shot phone_d2_deleted 2
+evq > $OUT/calendar_after_delete.txt
 adb shell input swipe 540 1900 540 700 400; shot phone_6_ideas_scrolled
 tap "الإعدادات"; shot phone_7_settings
 adb shell input swipe 540 1500 540 500 600; shot phone_8_settings_more

@@ -38,12 +38,17 @@ object NoteSheet {
         val text = note.text
         if (text != null) {
             s.action(R.drawable.ic_retry, "افهم الأمر تاني") {
-                Thread { TranscribeWorker.process(activity.applicationContext, note) }.start()
+                // take back what it did the first time, so nothing is done twice
+                Thread { Undo.revert(activity, note); TranscribeWorker.process(activity.applicationContext, note.copy(undo = null)) }.start()
                 Toast.makeText(activity, "بنفّذه تاني…", Toast.LENGTH_SHORT).show()
             }
             if (note.kind != "idea") {
                 s.action(R.drawable.ic_note, "اعتبرها فكرة عادية") {
-                    NoteStore.upsert(activity, note.copy(kind = "idea", summary = null))
+                    Thread {
+                        val done = Undo.revert(activity, note)
+                        NoteStore.upsert(activity, note.copy(kind = "idea", summary = null, undo = null))
+                        if (done != null) activity.runOnUiThread { Toast.makeText(activity, done, Toast.LENGTH_SHORT).show() }
+                    }.start()
                 }
             }
             if (note.kind == "idea" && Notebooks.all(activity).isNotEmpty()) {
@@ -72,10 +77,7 @@ object NoteSheet {
                 TranscribeWorker.enqueue(activity, note.id)
             }
         }
-        s.action(R.drawable.ic_delete, "حذف", ui.danger) {
-            NoteStore.delete(activity, note.id)
-            Toast.makeText(activity, "اتحذفت", Toast.LENGTH_SHORT).show()
-        }
+        s.action(R.drawable.ic_delete, "حذف", ui.danger) { confirmDelete(activity, ui, note) }
         s.show()
     }
 
@@ -105,5 +107,25 @@ object NoteSheet {
         NoteStore.upsert(activity, note.copy(kind = "note",
             summary = "اتضافت في ${nb.title}" + (heading?.let { " ← $it" } ?: "")))
         Toast.makeText(activity, "اتضافت في ${nb.title}", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Deleting a command: also take back what it did (event, alarm, reminder, notebook items)? */
+    fun confirmDelete(activity: Activity, ui: Ui, note: Note) {
+        val what = Undo.describe(activity, note)
+        if (what == null) { delete(activity, note, alsoAction = false); return }
+        val s = Sheet(activity, ui)
+        s.title("تمسح $what كمان؟")
+        s.action(R.drawable.ic_delete, "امسح الفكرة و$what", ui.danger) { delete(activity, note, alsoAction = true) }
+        s.action(R.drawable.ic_close, "امسح الفكرة بس") { delete(activity, note, alsoAction = false) }
+        s.show()
+    }
+
+    private fun delete(activity: Activity, note: Note, alsoAction: Boolean) {
+        val app = activity.applicationContext
+        Thread {
+            val done = if (alsoAction) Undo.revert(activity, note) else null
+            NoteStore.delete(app, note.id)
+            activity.runOnUiThread { Toast.makeText(app, done?.let { "اتحذفت، و$it" } ?: "اتحذفت", Toast.LENGTH_SHORT).show() }
+        }.start()
     }
 }
