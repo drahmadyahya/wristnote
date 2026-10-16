@@ -190,7 +190,8 @@ class DialView(context: Context) : View(context) {
 
     private fun formatTime(ms: Long): String {
         val s = ms / 1000
-        return String.format(java.util.Locale("ar", "EG"), "%d:%02d", s / 60, s % 60)
+        // forced left-to-right so "٠:٠٦" doesn't flip on an RTL screen
+        return "\u202A" + String.format(java.util.Locale("ar", "EG"), "%d:%02d", s / 60, s % 60) + "\u202C"
     }
 
     companion object {

@@ -54,6 +54,7 @@ class VoiceActivity : Activity() {
     private lateinit var resultText: TextView
     private lateinit var resultChip: LinearLayout
     private lateinit var actions: LinearLayout
+    private lateinit var tip: TextView
 
     private var recorder: AudioRecord? = null
     private var readThread: Thread? = null
@@ -79,6 +80,7 @@ class VoiceActivity : Activity() {
             val n = NoteStore.get(this@VoiceActivity, noteId)
             when {
                 n == null -> close()
+                n.text == TranscribeWorker.NOTHING_HEARD -> nothingHeard()
                 n.text != null -> showResult(n)
                 n.failed -> showFailed()
                 else -> {
@@ -151,6 +153,12 @@ class VoiceActivity : Activity() {
         }
         resultBox.addView(resultChip, LinearLayout.LayoutParams(-2, -2).apply { topMargin = ui.dp(16) })
         col.addView(resultBox, LinearLayout.LayoutParams(-1, -2).apply { topMargin = ui.dp(4) })
+
+        tip = ui.text(15f, color = muted, lineMult = 1.5f).apply {
+            text = "قول فكرتك أو أمرك\n«فكرني كمان ساعة أكلم أحمد»"
+            gravity = Gravity.CENTER
+        }
+        col.addView(tip, LinearLayout.LayoutParams(-1, -2).apply { topMargin = ui.dp(28) })
 
         val spacer = View(this)
         col.addView(spacer, LinearLayout.LayoutParams(1, 0, 1f))
@@ -228,6 +236,7 @@ class VoiceActivity : Activity() {
     private fun needMic() {
         state = State.IDLE
         dial.show(DialView.Mode.NEED_MIC, "محتاج إذن المايك")
+        tip.visibility = View.GONE
         stopMark.visibility = View.GONE
         underBtn.text = "اضغط عشان تسمح بالمايك"
         mainBtn.contentDescription = "اسمح بالمايك"
@@ -300,6 +309,7 @@ class VoiceActivity : Activity() {
     private fun failMic() {
         state = State.IDLE
         dial.show(DialView.Mode.ERROR, "المايك مش متاح\nممكن تطبيق تاني ماسكه")
+        tip.visibility = View.GONE
         stopMark.visibility = View.GONE
         underBtn.text = "اضغط عشان تجرّب تاني"
         mainBtn.setOnClickListener { recordAgain() }
@@ -337,6 +347,7 @@ class VoiceActivity : Activity() {
         dial.show(DialView.Mode.SENT, "اتحفظت\nبتتحوّل لنص…")
         mainBtn.visibility = View.INVISIBLE
         underBtn.visibility = View.INVISIBLE
+        tip.visibility = View.GONE
         handler.post(watcher)
     }
 
@@ -365,6 +376,15 @@ class VoiceActivity : Activity() {
         showActions()
     }
 
+    /** Silence: don't clutter the ideas list with an empty note. */
+    private fun nothingHeard() {
+        state = State.RESULT
+        NoteStore.delete(this, noteId)
+        File(filesDir, "audio/$noteId.wav").delete()
+        dial.show(DialView.Mode.SHORT, "مسمعناش كلام\nقرّب الموبايل وجرّب تاني")
+        showActions()
+    }
+
     private fun showFailed() {
         state = State.RESULT
         dial.show(DialView.Mode.ERROR, "مقدرناش نحوّلها لنص\nهتلاقيها في الأفكار")
@@ -372,6 +392,7 @@ class VoiceActivity : Activity() {
     }
 
     private fun showRecordingControls() {
+        tip.visibility = View.VISIBLE
         resultBox.visibility = View.GONE
         actions.visibility = View.GONE
         mainBtn.visibility = View.VISIBLE
@@ -383,6 +404,7 @@ class VoiceActivity : Activity() {
     }
 
     private fun showActions() {
+        tip.visibility = View.GONE
         mainBtn.visibility = View.GONE
         underBtn.visibility = View.GONE
         actions.visibility = View.VISIBLE

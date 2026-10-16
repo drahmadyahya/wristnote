@@ -53,7 +53,7 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
             return Result.success()
         }
         if (text.isBlank()) {
-            NoteStore.upsert(ctx, note.copy(text = "(مسمعناش كلام واضح)", failed = false, took = took))
+            NoteStore.upsert(ctx, note.copy(text = NOTHING_HEARD, failed = false, took = took))
             return Result.success()
         }
         process(ctx, note.copy(text = text, failed = false, took = took))
@@ -62,6 +62,7 @@ class TranscribeWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, par
 
     companion object {
         private const val KEY_ID = "id"
+        const val NOTHING_HEARD = "(مسمعناش كلام واضح)"
         private const val WORKING_ID = 7
 
         /** Turns the text into a command if it is one, otherwise keeps it as an idea. */
